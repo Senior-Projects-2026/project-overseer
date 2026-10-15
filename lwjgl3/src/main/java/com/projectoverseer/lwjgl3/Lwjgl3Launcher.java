@@ -1,8 +1,8 @@
-package com.survival.game.lwjgl3;
+package com.projectoverseer.lwjgl3;
 
 import com.badlogic.gdx.backends.lwjgl3.Lwjgl3Application;
 import com.badlogic.gdx.backends.lwjgl3.Lwjgl3ApplicationConfiguration;
-import com.survival.game.Main;
+import com.projectoverseer.Main;
 
 /** Launches the desktop (LWJGL3) application. */
 public class Lwjgl3Launcher {
