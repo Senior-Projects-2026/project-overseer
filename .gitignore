@@ -1,3 +1,6 @@
+## Files that belong locally only
+*.local.*
+
 ## Gradle:
 .gradle/
 gradle-app.setting
