@@ -17,7 +17,8 @@ public class Main extends ApplicationAdapter {
     Client client;
     SpriteBatch batch;
     Texture smiley;
-    boolean isConnected = false;
+
+    volatile boolean isConnected = false;
 
     @Override
     public void create() {
@@ -36,19 +37,21 @@ public class Main extends ApplicationAdapter {
             }
         });
 
-        try {
-            client.connect(5000, "localhost", Network.TCP_PORT, Network.UDP_PORT);
+        new Thread(() -> {
+            try {
+                client.connect(5000, "localhost", Network.TCP_PORT, Network.UDP_PORT);
 
-            Ping myPing = new Ping();
-            myPing.message = "Hello Server, I am a new client!";
-            client.sendTCP(myPing);
+                Ping myPing = new Ping();
+                myPing.message = "Hello Server, I am a new client!";
+                client.sendTCP(myPing);
 
-            isConnected = true;
+                isConnected = true;
 
-        } catch (IOException e) {
-            System.err.println("CLIENT: Could not connect to server!");
-            e.printStackTrace();
-        }
+            } catch (IOException e) {
+                System.err.println("CLIENT: Could not connect to server!");
+                e.printStackTrace();
+            }
+        }, "kryonet-connect").start();
 
         batch = new SpriteBatch();
         smiley = new Texture("smiley.png");
