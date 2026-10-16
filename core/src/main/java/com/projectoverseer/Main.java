@@ -1,12 +1,12 @@
 package com.projectoverseer;
 
 import com.badlogic.gdx.ApplicationAdapter;
-import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.utils.ScreenUtils;
 import com.esotericsoftware.kryonet.Client;
 import com.esotericsoftware.kryonet.Connection;
 import com.esotericsoftware.kryonet.Listener;
+import com.projectoverseer.entities.Player;
 import com.projectoverseer.shared.Network;
 import com.projectoverseer.shared.Network.Ping;
 
@@ -16,9 +16,10 @@ import java.io.IOException;
 public class Main extends ApplicationAdapter {
     Client client;
     SpriteBatch batch;
-    Texture smiley;
 
     volatile boolean isConnected = false;
+
+    Player player;
 
     @Override
     public void create() {
@@ -27,6 +28,8 @@ public class Main extends ApplicationAdapter {
 
         Network.register(client);
 
+        player = new Player();
+
         client.addListener(new Listener() {
             @Override
             public void received(Connection connection, Object object) {
@@ -34,6 +37,12 @@ public class Main extends ApplicationAdapter {
                     Ping ping = (Ping) object;
                     System.out.println("CLIENT: Received from server -> " + ping.message);
                 }
+            }
+
+            @Override
+            public void disconnected(Connection connection) {
+                System.out.println("CLIENT: Lost connection to server!");
+                isConnected = false;
             }
         });
 
@@ -54,15 +63,16 @@ public class Main extends ApplicationAdapter {
         }, "kryonet-connect").start();
 
         batch = new SpriteBatch();
-        smiley = new Texture("smiley.png");
     }
 
     @Override
     public void render() {
         if (isConnected) {
-            ScreenUtils.clear(0.2f, 0.6f, 1f, 1);
+            player.update();
+
+            ScreenUtils.clear(0f, 0.6f, 0f, 1);
             batch.begin();
-            batch.draw(smiley, 50, 0);
+            player.render(batch);
             batch.end();
         } else {
             ScreenUtils.clear(0.8f, 0, 0, 1);
@@ -76,6 +86,6 @@ public class Main extends ApplicationAdapter {
         }
 
         if (batch != null) batch.dispose();
-        if (smiley != null) smiley.dispose();
+        if (player != null) player.dispose();
     }
 }
