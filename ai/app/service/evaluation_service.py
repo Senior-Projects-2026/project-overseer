@@ -1,7 +1,7 @@
 from app.schemas.telemetry import GameTelemetry
 from app.schemas.decisions import EvaluationResponse
-from app.engines.difficulty_engine import evaluate_difficulty
-from app.engines.spawn_engine import recommend_spawns
+from app.engine.difficulty_engine import evaluate_difficulty
+from app.engine.spawn_engine import recommend_spawns
 
 
 def evaluate_telemetry(

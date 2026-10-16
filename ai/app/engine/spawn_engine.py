@@ -1,6 +1,6 @@
 from app.schemas.telemetry import GameTelemetry
 from app.schemas.decisions import SpawnDecision
-from app.engines.world_pressure_engine import (
+from app.engine.world_pressure_engine import (
     calculate_world_pressure,
 )
 
