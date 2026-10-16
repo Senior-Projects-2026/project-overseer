@@ -7,7 +7,7 @@ if (JavaVersion.current().isJava9Compatible()) {
         compileJava.options.release.set(21)
 }
 
-application.mainClass = 'com.survival.game.server.ServerLauncher'
+application.mainClass = 'com.projectoverseer.server.ServerLauncher'
 application.applicationName = appName
 eclipse.project.name = appName + '-server'
 
