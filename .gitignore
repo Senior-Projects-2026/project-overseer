@@ -1,3 +1,6 @@
+## Files that belong locally only
+*.local.*
+
 ## Gradle:
 .gradle/
 gradle-app.setting
@@ -20,6 +23,16 @@ gradle-app.setting
 *.ear
 hs_err_pid*
 .attach_pid*
+
+## Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+htmlcov/
 
 ## Android:
 /android/libs/armeabi-v7a/
