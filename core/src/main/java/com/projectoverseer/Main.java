@@ -8,6 +8,7 @@ import com.badlogic.gdx.utils.ScreenUtils;
 import com.esotericsoftware.kryonet.Client;
 import com.esotericsoftware.kryonet.Connection;
 import com.esotericsoftware.kryonet.Listener;
+import com.projectoverseer.entities.Player;
 import com.projectoverseer.shared.Network;
 import com.projectoverseer.shared.Network.Ping;
 import com.projectoverseer.ui.MainMenu;
@@ -30,6 +31,8 @@ public class Main extends ApplicationAdapter {
     private volatile boolean isConnected;
     private GameState gameState = GameState.MENU;
 
+    Player player;
+
     @Override
     public void create() {
         batch = new SpriteBatch();
@@ -45,6 +48,8 @@ public class Main extends ApplicationAdapter {
         client.start();
         Network.register(client);
 
+        player = new Player();
+
         client.addListener(new Listener() {
             @Override
             public void received(Connection connection, Object object) {
@@ -56,6 +61,7 @@ public class Main extends ApplicationAdapter {
 
             @Override
             public void disconnected(Connection connection) {
+                System.out.println("CLIENT: Lost connection to server!");
                 isConnected = false;
             }
         });
@@ -101,9 +107,11 @@ public class Main extends ApplicationAdapter {
             return;
         }
 
-        ScreenUtils.clear(0.2f, 0.6f, 1f, 1f);
+        player.update();
+
+            ScreenUtils.clear(0f, 0.6f, 0f, 1f);
         batch.begin();
-        batch.draw(smiley, 50, 0);
+        player.render(batch);
         batch.end();
     }
 
@@ -121,6 +129,6 @@ public class Main extends ApplicationAdapter {
         }
         if (menu != null) menu.dispose();
         if (batch != null) batch.dispose();
-        if (smiley != null) smiley.dispose();
+        if (player != null) player.dispose();
     }
 }
