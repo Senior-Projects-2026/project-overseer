@@ -13,6 +13,7 @@ eclipse.project.name = appName + '-server'
 
 dependencies {
   implementation project(':shared')
+  implementation "com.badlogicgames.gdx:gdx-ai:1.8.2" //!!! to be updated
 }
 
 jar {
