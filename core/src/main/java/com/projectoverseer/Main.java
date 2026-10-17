@@ -1,6 +1,9 @@
 package com.projectoverseer;
 
 import com.badlogic.gdx.ApplicationAdapter;
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.graphics.OrthographicCamera;
+import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.utils.ScreenUtils;
 import com.esotericsoftware.kryonet.Client;
@@ -16,6 +19,8 @@ import java.io.IOException;
 public class Main extends ApplicationAdapter {
     Client client;
     SpriteBatch batch;
+    Texture smiley;
+    OrthographicCamera camera;
 
     volatile boolean isConnected = false;
 
@@ -63,11 +68,23 @@ public class Main extends ApplicationAdapter {
         }, "kryonet-connect").start();
 
         batch = new SpriteBatch();
+        smiley = new Texture("smiley.png");
+
+        float w = Gdx.graphics.getWidth();
+        float h = Gdx.graphics.getHeight();
+        camera = new OrthographicCamera();
+        camera.setToOrtho(false, w, h);
+        camera.position.set(w / 2f, h / 2f, 0);
+        camera.update();
     }
 
     @Override
     public void render() {
+        camera.update();
+
         if (isConnected) {
+            ScreenUtils.clear(0.2f, 0.6f, 1f, 1);
+            batch.setProjectionMatrix(camera.combined);
             player.update();
 
             ScreenUtils.clear(0f, 0.6f, 0f, 1);
@@ -77,6 +94,13 @@ public class Main extends ApplicationAdapter {
         } else {
             ScreenUtils.clear(0.8f, 0, 0, 1);
         }
+    }
+
+    @Override
+    public void resize(int width, int height) {
+        camera.setToOrtho(false, width, height);
+        camera.position.set(width / 2f, height / 2f, 0);
+        camera.update();
     }
 
     @Override
