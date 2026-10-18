@@ -108,4 +108,11 @@ public class Player {
             spriteSheet.dispose();
         }
     }
+    public float getX() {
+        return x;
+    }
+
+    public float getY() {
+        return y;
+    }
 }

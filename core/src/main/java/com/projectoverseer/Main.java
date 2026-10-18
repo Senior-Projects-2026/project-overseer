@@ -3,9 +3,9 @@ package com.projectoverseer;
 import com.badlogic.gdx.ApplicationAdapter;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.OrthographicCamera;
-import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.utils.ScreenUtils;
+import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.esotericsoftware.kryonet.Client;
 import com.esotericsoftware.kryonet.Connection;
 import com.esotericsoftware.kryonet.Listener;
@@ -27,33 +27,27 @@ public class Main extends ApplicationAdapter {
     private Client client;
     private SpriteBatch batch;
     private MainMenu menu;
-    OrthographicCamera camera;
+    private OrthographicCamera camera;
+    private FitViewport viewport;
+    private Player player;
 
     private volatile boolean isConnected;
     private GameState gameState = GameState.MENU;
 
-    Player player;
-
-
     @Override
     public void create() {
         batch = new SpriteBatch();
+        camera = new OrthographicCamera();
+        viewport = new FitViewport(640, 360, camera);
 
         createClient();
         menu = new MainMenu(this::connectToServer);
         menu.show("Choose Play to connect to the server.");
-        float w = Gdx.graphics.getWidth();
-        float h = Gdx.graphics.getHeight();
-        camera = new OrthographicCamera();
-        camera.setToOrtho(false, w, h);
-        camera.position.set(w / 2f, h / 2f, 0);
-        camera.update();
     }
 
     private void createClient() {
         client = new Client();
         client.start();
-
         Network.register(client);
 
         player = new Player();
@@ -106,14 +100,10 @@ public class Main extends ApplicationAdapter {
         isConnected = false;
         gameState = GameState.MENU;
         menu.show(status);
-
-
     }
 
     @Override
     public void render() {
-        camera.update();
-
         if (gameState == GameState.MENU || gameState == GameState.CONNECTING) {
             menu.render(Gdx.graphics.getDeltaTime());
             return;
@@ -121,11 +111,33 @@ public class Main extends ApplicationAdapter {
 
         player.update();
 
+        float deadzoneWidth = 100f;
+        float deadzoneHeight = 80f;
+
+        float leftBoundary = camera.position.x - deadzoneWidth;
+        float rightBoundary = camera.position.x + deadzoneWidth;
+        float bottomBoundary = camera.position.y - deadzoneHeight;
+        float topBoundary = camera.position.y + deadzoneHeight;
+
+        float playerX = player.getX()+20;
+        float playerY = player.getY()+20;
+
+        if (playerX < leftBoundary) {
+            camera.position.x = playerX + deadzoneWidth;
+        } else if (playerX > rightBoundary) {
+            camera.position.x = playerX - deadzoneWidth;
+        }
+
+        if (playerY < bottomBoundary) {
+            camera.position.y = playerY + deadzoneHeight;
+        } else if (playerY > topBoundary) {
+            camera.position.y = playerY - deadzoneHeight;
+        }
+
+        camera.update();
+
         ScreenUtils.clear(0f, 0.6f, 0f, 1f);
-
-        // Aplicăm proiecția camerei pe batch
         batch.setProjectionMatrix(camera.combined);
-
         batch.begin();
         player.render(batch);
         batch.end();
@@ -133,9 +145,7 @@ public class Main extends ApplicationAdapter {
 
     @Override
     public void resize(int width, int height) {
-        camera.setToOrtho(false, width, height);
-        camera.position.set(width / 2f, height / 2f, 0);
-        camera.update();
+        viewport.update(width, height, false);
     }
 
     @Override
@@ -143,8 +153,6 @@ public class Main extends ApplicationAdapter {
         if (client != null) {
             client.stop();
         }
-
-        // Curățăm corect obiectele rămase în joc
         if (menu != null) menu.dispose();
         if (batch != null) batch.dispose();
         if (player != null) player.dispose();
