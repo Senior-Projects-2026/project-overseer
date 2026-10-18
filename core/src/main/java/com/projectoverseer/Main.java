@@ -3,17 +3,14 @@ package com.projectoverseer;
 import com.badlogic.gdx.ApplicationAdapter;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.OrthographicCamera;
-import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.utils.ScreenUtils;
 import com.esotericsoftware.kryonet.Client;
 import com.esotericsoftware.kryonet.Connection;
 import com.esotericsoftware.kryonet.Listener;
-import com.projectoverseer.entities.Player;
 import com.projectoverseer.shared.Network;
 import com.projectoverseer.shared.Network.Ping;
-import com.projectoverseer.ui.MainMenu;
 
 import java.io.IOException;
 
@@ -35,6 +32,8 @@ public class Main extends ApplicationAdapter {
 
     Player player;
 
+    Player player;
+
     @Override
     public void create() {
         batch = new SpriteBatch();
@@ -53,6 +52,7 @@ public class Main extends ApplicationAdapter {
     private void createClient() {
         client = new Client();
         client.start();
+
         Network.register(client);
 
         player = new Player();
@@ -125,6 +125,15 @@ public class Main extends ApplicationAdapter {
         batch.begin();
         player.render(batch);
         batch.end();
+            player.update();
+
+            ScreenUtils.clear(0f, 0.6f, 0f, 1);
+            batch.begin();
+            player.render(batch);
+            batch.end();
+        } else {
+            ScreenUtils.clear(0.8f, 0, 0, 1);
+        }
     }
 
     @Override
@@ -139,8 +148,8 @@ public class Main extends ApplicationAdapter {
         if (client != null) {
             client.stop();
         }
-        if (menu != null) menu.dispose();
+
         if (batch != null) batch.dispose();
-        if (player != null) player.dispose();
+        if (smiley != null) smiley.dispose();
     }
 }
