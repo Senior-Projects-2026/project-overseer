@@ -3,32 +3,54 @@ package com.projectoverseer;
 import com.badlogic.gdx.ApplicationAdapter;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.OrthographicCamera;
+import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.utils.ScreenUtils;
 import com.esotericsoftware.kryonet.Client;
 import com.esotericsoftware.kryonet.Connection;
 import com.esotericsoftware.kryonet.Listener;
+import com.projectoverseer.entities.Player;
 import com.projectoverseer.shared.Network;
 import com.projectoverseer.shared.Network.Ping;
+import com.projectoverseer.ui.MainMenu;
 
 import java.io.IOException;
 
 /** {@link com.badlogic.gdx.ApplicationListener} implementation shared by all platforms. */
 public class Main extends ApplicationAdapter {
-    Client client;
-    SpriteBatch batch;
-    Texture smiley;
+    private enum GameState {
+        MENU,
+        CONNECTING,
+        PLAYING
+    }
+
+    private Client client;
+    private SpriteBatch batch;
+    private MainMenu menu;
     OrthographicCamera camera;
 
-    volatile boolean isConnected = false;
+    private volatile boolean isConnected;
+    private GameState gameState = GameState.MENU;
+
+    Player player;
 
     @Override
     public void create() {
+        batch = new SpriteBatch();
+        smiley = new Texture("smiley.png");
+
+        createClient();
+        menu = new MainMenu(this::connectToServer);
+        menu.show("Choose Play to connect to the server.");
+    }
+
+    private void createClient() {
         client = new Client();
         client.start();
-
         Network.register(client);
+
+        player = new Player();
 
         client.addListener(new Listener() {
             @Override
@@ -38,7 +60,23 @@ public class Main extends ApplicationAdapter {
                     System.out.println("CLIENT: Received from server -> " + ping.message);
                 }
             }
+
+            @Override
+            public void disconnected(Connection connection) {
+                System.out.println("CLIENT: Lost connection to server!");
+                isConnected = false;
+            }
         });
+    }
+
+    private void connectToServer() {
+        if (gameState == GameState.CONNECTING || isConnected) {
+            return;
+        }
+
+        gameState = GameState.CONNECTING;
+        menu.show("Connecting to localhost...");
+        menu.hide();
 
         new Thread(() -> {
             try {
@@ -49,15 +87,19 @@ public class Main extends ApplicationAdapter {
                 client.sendTCP(myPing);
 
                 isConnected = true;
-
+                Gdx.app.postRunnable(() -> gameState = GameState.PLAYING);
             } catch (IOException e) {
                 System.err.println("CLIENT: Could not connect to server!");
                 e.printStackTrace();
+                Gdx.app.postRunnable(() -> showMenu("Could not connect. Is the server running?"));
             }
         }, "kryonet-connect").start();
+    }
 
-        batch = new SpriteBatch();
-        smiley = new Texture("smiley.png");
+    private void showMenu(String status) {
+        isConnected = false;
+        gameState = GameState.MENU;
+        menu.show(status);
 
         float w = Gdx.graphics.getWidth();
         float h = Gdx.graphics.getHeight();
@@ -71,14 +113,24 @@ public class Main extends ApplicationAdapter {
     public void render() {
         camera.update();
 
-        if (isConnected) {
-            ScreenUtils.clear(0.2f, 0.6f, 1f, 1);
+        if (gameState == GameState.MENU || gameState == GameState.CONNECTING) {
+            menu.render(Gdx.graphics.getDeltaTime());
+            return;
+        }
+
+        player.update();
+
+            ScreenUtils.clear(0f, 0.6f, 0f, 1f);
             batch.setProjectionMatrix(camera.combined);
-            batch.begin();
-            batch.draw(smiley, 50, 0);
-            batch.end();
-        } else {
-            ScreenUtils.clear(0.8f, 0, 0, 1);
+        batch.begin();
+        player.render(batch);
+        batch.end();
+    }
+
+    @Override
+    public void resize(int width, int height) {
+        if (menu != null) {
+            menu.resize(width, height);
         }
     }
 
@@ -94,8 +146,8 @@ public class Main extends ApplicationAdapter {
         if (client != null) {
             client.stop();
         }
-
+        if (menu != null) menu.dispose();
         if (batch != null) batch.dispose();
-        if (smiley != null) smiley.dispose();
+        if (player != null) player.dispose();
     }
 }
