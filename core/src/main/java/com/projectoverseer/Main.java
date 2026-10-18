@@ -38,11 +38,16 @@ public class Main extends ApplicationAdapter {
     @Override
     public void create() {
         batch = new SpriteBatch();
-        smiley = new Texture("smiley.png");
 
         createClient();
         menu = new MainMenu(this::connectToServer);
         menu.show("Choose Play to connect to the server.");
+        float w = Gdx.graphics.getWidth();
+        float h = Gdx.graphics.getHeight();
+        camera = new OrthographicCamera();
+        camera.setToOrtho(false, w, h);
+        camera.position.set(w / 2f, h / 2f, 0);
+        camera.update();
     }
 
     private void createClient() {
@@ -101,12 +106,7 @@ public class Main extends ApplicationAdapter {
         gameState = GameState.MENU;
         menu.show(status);
 
-        float w = Gdx.graphics.getWidth();
-        float h = Gdx.graphics.getHeight();
-        camera = new OrthographicCamera();
-        camera.setToOrtho(false, w, h);
-        camera.position.set(w / 2f, h / 2f, 0);
-        camera.update();
+
     }
 
     @Override
@@ -125,13 +125,6 @@ public class Main extends ApplicationAdapter {
         batch.begin();
         player.render(batch);
         batch.end();
-    }
-
-    @Override
-    public void resize(int width, int height) {
-        if (menu != null) {
-            menu.resize(width, height);
-        }
     }
 
     @Override
