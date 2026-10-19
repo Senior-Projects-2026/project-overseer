@@ -42,6 +42,8 @@ public class Network {
         kryo.register(PositionUpdate.class);
         kryo.register(PlayerPosition.class);
         kryo.register(PlayerLeft.class);
+        kryo.register(TimeSync.class);
+        kryo.register(GameEnd.class);
     }
 
     public static class Ping {
@@ -90,5 +92,14 @@ public class Network {
         public int playerId;
         public PlayerLeft() {}
         public PlayerLeft(int playerId) { this.playerId = playerId; }
+    }
+
+    public static class TimeSync {
+        public int currentDay;
+        public boolean isNight;
+    }
+
+    public static class GameEnd {
+        public boolean isVictory;
     }
 }
