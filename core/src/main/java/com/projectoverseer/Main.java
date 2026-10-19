@@ -148,7 +148,7 @@ public class Main extends ApplicationAdapter {
         viewport.apply();
         batch.setProjectionMatrix(camera.combined);
         batch.begin();
-        tileRenderer.render(batch, chunks);
+        tileRenderer.render(batch, chunks, camera);
         player.render(batch);
         batch.end();
     }

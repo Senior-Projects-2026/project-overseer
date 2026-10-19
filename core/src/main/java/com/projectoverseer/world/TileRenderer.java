@@ -1,6 +1,7 @@
 package com.projectoverseer.world;
 
 import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
@@ -43,15 +44,21 @@ public final class TileRenderer implements Disposable {
     }
 
     /**
-     * Draws all cells. The caller supplies a begun batch with the world camera's projection
-     * Camera culling will be added separately; this renderer does not own the batch !!!!
+     * Draws only cells intersecting the axis-aligned camera's visible rectangle.
+     * The caller supplies a begun batch with this camera's projection; it owns the batch.
      */
-    public void render(SpriteBatch batch, Iterable<Chunk> chunks) {
+    public void render(SpriteBatch batch, Iterable<Chunk> chunks, OrthographicCamera camera) {
+        VisibleTileBounds visible = VisibleTileBounds.fromView(camera.position.x, camera.position.y,
+            camera.viewportWidth, camera.viewportHeight, camera.zoom);
         for (Chunk chunk : chunks) {
+            VisibleTileBounds.TileRange range = visible.inChunk(chunk);
+            if (range.isEmpty()) {
+                continue;
+            }
             float originX = (float) chunk.getOriginTileX() * TILE_SIZE;
             float originY = (float) chunk.getOriginTileY() * TILE_SIZE;
-            for (int y = 0; y < Chunk.SIZE; y++) {
-                for (int x = 0; x < Chunk.SIZE; x++) {
+            for (int y = range.startY(); y < range.endY(); y++) {
+                for (int x = range.startX(); x < range.endX(); x++) {
                     batch.draw(regions.get(chunk.getTile(x, y)),
                         originX + x * TILE_SIZE, originY + y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
                 }
