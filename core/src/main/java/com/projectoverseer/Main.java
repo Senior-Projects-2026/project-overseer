@@ -13,8 +13,12 @@ import com.projectoverseer.entities.Player;
 import com.projectoverseer.shared.Network;
 import com.projectoverseer.shared.Network.Ping;
 import com.projectoverseer.ui.MainMenu;
+import com.projectoverseer.shared.world.Chunk;
+import com.projectoverseer.world.DemoWorld;
+import com.projectoverseer.world.TileRenderer;
 
 import java.io.IOException;
+import java.util.List;
 
 /** {@link com.badlogic.gdx.ApplicationListener} implementation shared by all platforms. */
 public class Main extends ApplicationAdapter {
@@ -30,6 +34,8 @@ public class Main extends ApplicationAdapter {
     private OrthographicCamera camera;
     private FitViewport viewport;
     private Player player;
+    private TileRenderer tileRenderer;
+    private List<Chunk> chunks;
 
     private volatile boolean isConnected;
     private GameState gameState = GameState.MENU;
@@ -39,6 +45,8 @@ public class Main extends ApplicationAdapter {
         batch = new SpriteBatch();
         camera = new OrthographicCamera();
         viewport = new FitViewport(640, 360, camera);
+        tileRenderer = new TileRenderer();
+        chunks = DemoWorld.createChunks();
 
         createClient();
         menu = new MainMenu(this::connectToServer);
@@ -136,9 +144,11 @@ public class Main extends ApplicationAdapter {
 
         camera.update();
 
-        ScreenUtils.clear(0f, 0.6f, 0f, 1f);
+        ScreenUtils.clear(0.08f, 0.10f, 0.12f, 1f);
+        viewport.apply();
         batch.setProjectionMatrix(camera.combined);
         batch.begin();
+        tileRenderer.render(batch, chunks);
         player.render(batch);
         batch.end();
     }
@@ -160,5 +170,6 @@ public class Main extends ApplicationAdapter {
         if (menu != null) menu.dispose();
         if (batch != null) batch.dispose();
         if (player != null) player.dispose();
+        if (tileRenderer != null) tileRenderer.dispose();
     }
 }
