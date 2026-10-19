@@ -145,6 +145,10 @@ public class Main extends ApplicationAdapter {
 
     @Override
     public void resize(int width, int height) {
+        if (menu != null) {
+            menu.resize(width, height);
+        }
+
         viewport.update(width, height, false);
     }
 
