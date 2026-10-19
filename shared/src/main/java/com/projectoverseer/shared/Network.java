@@ -52,26 +52,35 @@ public class Network {
         public int playerId;
     }
 
-    /** Client to server: the sender's latest world position. */
+    /** Client to server: the sender's latest world position and direction. */
     public static class PositionUpdate {
         public float x;
         public float y;
+        public int direction;
 
         public PositionUpdate() {}
-        public PositionUpdate(float x, float y) { this.x = x; this.y = y; }
+
+        public PositionUpdate(float x, float y, int direction) {
+            this.x = x;
+            this.y = y;
+            this.direction = direction;
+        }
     }
 
-    /** Server to clients: a player's latest world position. */
+    /** Server to clients: a player's latest world position and direction. */
     public static class PlayerPosition {
         public int playerId;
         public float x;
         public float y;
+        public int direction;
 
         public PlayerPosition() {}
-        public PlayerPosition(int playerId, float x, float y) {
+
+        public PlayerPosition(int playerId, float x, float y, int direction) {
             this.playerId = playerId;
             this.x = x;
             this.y = y;
+            this.direction = direction;
         }
     }
 

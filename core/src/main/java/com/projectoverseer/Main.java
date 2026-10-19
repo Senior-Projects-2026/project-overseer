@@ -1,3 +1,4 @@
+
 package com.projectoverseer;
 
 import com.badlogic.gdx.ApplicationAdapter;
@@ -36,7 +37,7 @@ public class Main extends ApplicationAdapter {
     private OrthographicCamera camera;
     private FitViewport viewport;
     private Player player;
-    private final Map<Integer, PlayerPosition> otherPlayers = new ConcurrentHashMap<>();
+    private final Map<Integer, Player> otherPlayers = new ConcurrentHashMap<>();
 
     private volatile boolean isConnected;
     private volatile int playerId = -1;
@@ -72,9 +73,25 @@ public class Main extends ApplicationAdapter {
                     System.out.println("CLIENT: Assigned player ID " + playerId);
                 } else if (object instanceof PlayerPosition) {
                     PlayerPosition position = (PlayerPosition) object;
-                    if (position.playerId != playerId) otherPlayers.put(position.playerId, position);
+
+                    if (position.playerId != playerId) {
+                        Gdx.app.postRunnable(() ->
+                            otherPlayers.computeIfAbsent(
+                                position.playerId, id -> new Player()
+                            ).setRemoteState(
+                                position.x, position.y, position.direction
+                            )
+                        );
+                    }
                 } else if (object instanceof PlayerLeft) {
-                    otherPlayers.remove(((PlayerLeft) object).playerId);
+                    int leftId = ((PlayerLeft) object).playerId;
+
+                    Gdx.app.postRunnable(() -> {
+                        Player removed = otherPlayers.remove(leftId);
+                        if (removed != null) {
+                            removed.dispose();
+                        }
+                    });
                 }
             }
 
@@ -83,8 +100,14 @@ public class Main extends ApplicationAdapter {
                 System.out.println("CLIENT: Lost connection to server!");
                 isConnected = false;
                 playerId = -1;
-                otherPlayers.clear();
-                Gdx.app.postRunnable(() -> showMenu("Connection lost. Choose Play to reconnect."));
+
+                Gdx.app.postRunnable(() -> {
+                    for (Player other : otherPlayers.values()) {
+                        other.dispose();
+                    }
+                    otherPlayers.clear();
+                    showMenu("Connection lost. Choose Play to reconnect.");
+                });
             }
         });
     }
@@ -100,7 +123,12 @@ public class Main extends ApplicationAdapter {
 
         new Thread(() -> {
             try {
-                client.connect(5000, Network.SERVER_HOST, Network.TCP_PORT, Network.UDP_PORT);
+                client.connect(
+                    5000,
+                    Network.SERVER_HOST,
+                    Network.TCP_PORT,
+                    Network.UDP_PORT
+                );
 
                 Ping myPing = new Ping();
                 myPing.message = "Hello Server, I am a new client!";
@@ -108,11 +136,15 @@ public class Main extends ApplicationAdapter {
 
                 isConnected = true;
                 positionUpdateTimer = 0f;
+
                 Gdx.app.postRunnable(() -> gameState = GameState.PLAYING);
             } catch (IOException e) {
                 System.err.println("CLIENT: Could not connect to server!");
                 e.printStackTrace();
-                Gdx.app.postRunnable(() -> showMenu("Could not connect. Is the server running?"));
+
+                Gdx.app.postRunnable(() ->
+                    showMenu("Could not connect. Is the server running?")
+                );
             }
         }, "kryonet-connect").start();
     }
@@ -134,9 +166,15 @@ public class Main extends ApplicationAdapter {
 
         if (isConnected) {
             positionUpdateTimer += Gdx.graphics.getDeltaTime() * 1000f;
+
             if (positionUpdateTimer >= Network.POSITION_UPDATE_INTERVAL_MS) {
                 positionUpdateTimer = 0f;
-                client.sendUDP(new PositionUpdate(player.getX(), player.getY()));
+
+                client.sendUDP(new PositionUpdate(
+                    player.getX(),
+                    player.getY(),
+                    player.getDirection()
+                ));
             }
         }
 
@@ -148,8 +186,8 @@ public class Main extends ApplicationAdapter {
         float bottomBoundary = camera.position.y - deadzoneHeight;
         float topBoundary = camera.position.y + deadzoneHeight;
 
-        float playerX = player.getX()+20;
-        float playerY = player.getY()+20;
+        float playerX = player.getX() + 20;
+        float playerY = player.getY() + 20;
 
         if (playerX < leftBoundary) {
             camera.position.x = playerX + deadzoneWidth;
@@ -168,10 +206,13 @@ public class Main extends ApplicationAdapter {
         ScreenUtils.clear(0f, 0.6f, 0f, 1f);
         batch.setProjectionMatrix(camera.combined);
         batch.begin();
+
         player.render(batch);
-        for (PlayerPosition other : otherPlayers.values()) {
-            player.renderAt(batch, other.x, other.y);
+
+        for (Player other : otherPlayers.values()) {
+            other.render(batch);
         }
+
         batch.end();
     }
 
@@ -189,8 +230,19 @@ public class Main extends ApplicationAdapter {
         if (client != null) {
             client.stop();
         }
-        if (menu != null) menu.dispose();
-        if (batch != null) batch.dispose();
-        if (player != null) player.dispose();
+        if (menu != null) {
+            menu.dispose();
+        }
+        if (batch != null) {
+            batch.dispose();
+        }
+        if (player != null) {
+            player.dispose();
+        }
+
+        for (Player other : otherPlayers.values()) {
+            other.dispose();
+        }
+        otherPlayers.clear();
     }
 }

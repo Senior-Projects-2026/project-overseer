@@ -1,3 +1,4 @@
+
 package com.projectoverseer.entities;
 
 import com.badlogic.gdx.Gdx;
@@ -25,13 +26,16 @@ public class Player {
     private Animation<TextureRegion> walkDownRight;
     private Animation<TextureRegion> currentAnimation;
     private float stateTime = 0f;
+    private int direction = 0;
 
     public Player() {
         spriteSheet = new Texture("player.png");
 
-        TextureRegion[][] frames = TextureRegion.split(spriteSheet,
+        TextureRegion[][] frames = TextureRegion.split(
+            spriteSheet,
             spriteSheet.getWidth() / 6,
-            spriteSheet.getHeight() / 16);
+            spriteSheet.getHeight() / 16
+        );
 
         walkUp = new Animation<>(0.1f, frames[12]);
         walkLeft = new Animation<>(0.1f, frames[14]);
@@ -66,27 +70,30 @@ public class Player {
             movement.nor();
             stateTime += Gdx.graphics.getDeltaTime();
 
-
-            // 1. Check diagonals FIRST (both X and Y are non-zero)
             if (movement.x > 0 && movement.y > 0) {
                 currentAnimation = walkUpRight;
+                direction = 5;
             } else if (movement.x < 0 && movement.y > 0) {
                 currentAnimation = walkUpLeft;
+                direction = 4;
             } else if (movement.x > 0 && movement.y < 0) {
                 currentAnimation = walkDownRight;
+                direction = 7;
             } else if (movement.x < 0 && movement.y < 0) {
                 currentAnimation = walkDownLeft;
-            }
-
-            // 2. Check straight directions ONLY IF no diagonal is pressed
-            else if (movement.y > 0) {
+                direction = 6;
+            } else if (movement.y > 0) {
                 currentAnimation = walkUp;
+                direction = 1;
             } else if (movement.y < 0) {
                 currentAnimation = walkDown;
+                direction = 0;
             } else if (movement.x < 0) {
                 currentAnimation = walkLeft;
+                direction = 2;
             } else if (movement.x > 0) {
                 currentAnimation = walkRight;
+                direction = 3;
             }
         } else {
             stateTime = 0f;
@@ -108,11 +115,38 @@ public class Player {
         batch.draw(currentFrame, renderX, renderY);
     }
 
+    public void setRemoteState(float x, float y, int direction) {
+        this.x = x;
+        this.y = y;
+
+        if (this.direction != direction) {
+            switch (direction) {
+                case 0: currentAnimation = walkDown; break;
+                case 1: currentAnimation = walkUp; break;
+                case 2: currentAnimation = walkLeft; break;
+                case 3: currentAnimation = walkRight; break;
+                case 4: currentAnimation = walkUpLeft; break;
+                case 5: currentAnimation = walkUpRight; break;
+                case 6: currentAnimation = walkDownLeft; break;
+                case 7: currentAnimation = walkDownRight; break;
+                default: return;
+            }
+
+            this.direction = direction;
+            stateTime = 0f;
+        }
+    }
+
+    public int getDirection() {
+        return direction;
+    }
+
     public void dispose() {
         if (spriteSheet != null) {
             spriteSheet.dispose();
         }
     }
+
     public float getX() {
         return x;
     }

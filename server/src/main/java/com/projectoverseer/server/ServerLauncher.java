@@ -1,3 +1,4 @@
+
 package com.projectoverseer.server;
 
 import com.esotericsoftware.kryonet.Connection;
@@ -29,27 +30,44 @@ public class ServerLauncher {
                 Welcome welcome = new Welcome();
                 welcome.playerId = connection.getID();
                 connection.sendTCP(welcome);
+
                 for (PlayerPosition player : players.values()) {
                     connection.sendTCP(player);
                 }
-                System.out.println("SERVER: Player " + connection.getID() + " connected.");
+
+                System.out.println(
+                    "SERVER: Player " + connection.getID() + " connected."
+                );
             }
 
             @Override
             public void received(Connection connection, Object object) {
                 if (object instanceof Ping) {
                     Ping ping = (Ping) object;
-                    System.out.println("SERVER: Received from client -> " + ping.message);
+                    System.out.println(
+                        "SERVER: Received from client -> " + ping.message
+                    );
 
                     Ping response = new Ping();
                     response.message = "Pong from server, I hear you perfectly!";
                     connection.sendTCP(response);
+
                 } else if (object instanceof PositionUpdate) {
                     PositionUpdate update = (PositionUpdate) object;
-                    PlayerPosition position = new PlayerPosition(connection.getID(), update.x, update.y);
+
+                    PlayerPosition position = new PlayerPosition(
+                        connection.getID(),
+                        update.x,
+                        update.y,
+                        update.direction
+                    );
+
                     players.put(connection.getID(), position);
+
                     for (Connection recipient : server.getConnections()) {
-                        if (recipient.getID() != connection.getID()) recipient.sendUDP(position);
+                        if (recipient.getID() != connection.getID()) {
+                            recipient.sendUDP(position);
+                        }
                     }
                 }
             }
@@ -57,14 +75,24 @@ public class ServerLauncher {
             @Override
             public void disconnected(Connection connection) {
                 players.remove(connection.getID());
+
                 PlayerLeft left = new PlayerLeft(connection.getID());
-                for (Connection recipient : server.getConnections()) recipient.sendTCP(left);
-                System.out.println("SERVER: Player " + connection.getID() + " disconnected.");
+
+                for (Connection recipient : server.getConnections()) {
+                    recipient.sendTCP(left);
+                }
+
+                System.out.println(
+                    "SERVER: Player " + connection.getID() + " disconnected."
+                );
             }
         });
 
         server.start();
 
-        System.out.println("SERVER: Listening on TCP " + Network.TCP_PORT + " and UDP " + Network.UDP_PORT + "...");
+        System.out.println(
+            "SERVER: Listening on TCP " + Network.TCP_PORT
+                + " and UDP " + Network.UDP_PORT + "..."
+        );
     }
 }
