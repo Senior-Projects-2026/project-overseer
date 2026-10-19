@@ -2,9 +2,10 @@ package com.projectoverseer;
 
 import com.badlogic.gdx.ApplicationAdapter;
 import com.badlogic.gdx.Gdx;
-import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.utils.ScreenUtils;
+import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.esotericsoftware.kryonet.Client;
 import com.esotericsoftware.kryonet.Connection;
 import com.esotericsoftware.kryonet.Listener;
@@ -25,18 +26,19 @@ public class Main extends ApplicationAdapter {
 
     private Client client;
     private SpriteBatch batch;
-    private Texture smiley;
     private MainMenu menu;
+    private OrthographicCamera camera;
+    private FitViewport viewport;
+    private Player player;
 
     private volatile boolean isConnected;
     private GameState gameState = GameState.MENU;
 
-    Player player;
-
     @Override
     public void create() {
         batch = new SpriteBatch();
-        smiley = new Texture("smiley.png");
+        camera = new OrthographicCamera();
+        viewport = new FitViewport(640, 360, camera);
 
         createClient();
         menu = new MainMenu(this::connectToServer);
@@ -109,7 +111,33 @@ public class Main extends ApplicationAdapter {
 
         player.update();
 
-            ScreenUtils.clear(0f, 0.6f, 0f, 1f);
+        float deadzoneWidth = 100f;
+        float deadzoneHeight = 80f;
+
+        float leftBoundary = camera.position.x - deadzoneWidth;
+        float rightBoundary = camera.position.x + deadzoneWidth;
+        float bottomBoundary = camera.position.y - deadzoneHeight;
+        float topBoundary = camera.position.y + deadzoneHeight;
+
+        float playerX = player.getX()+20;
+        float playerY = player.getY()+20;
+
+        if (playerX < leftBoundary) {
+            camera.position.x = playerX + deadzoneWidth;
+        } else if (playerX > rightBoundary) {
+            camera.position.x = playerX - deadzoneWidth;
+        }
+
+        if (playerY < bottomBoundary) {
+            camera.position.y = playerY + deadzoneHeight;
+        } else if (playerY > topBoundary) {
+            camera.position.y = playerY - deadzoneHeight;
+        }
+
+        camera.update();
+
+        ScreenUtils.clear(0f, 0.6f, 0f, 1f);
+        batch.setProjectionMatrix(camera.combined);
         batch.begin();
         player.render(batch);
         batch.end();
@@ -120,6 +148,8 @@ public class Main extends ApplicationAdapter {
         if (menu != null) {
             menu.resize(width, height);
         }
+
+        viewport.update(width, height, false);
     }
 
     @Override

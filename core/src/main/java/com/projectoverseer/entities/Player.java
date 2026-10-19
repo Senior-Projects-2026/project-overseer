@@ -9,22 +9,22 @@ import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.math.Vector2;
 
 public class Player {
-    float x = 400;
-    float y = 300;
-    float speed = 100;
-    Vector2 movement = new Vector2();
+    private float x = 400;
+    private float y = 300;
+    private float speed = 100;
+    private Vector2 movement = new Vector2();
 
-    Texture spriteSheet;
-    Animation<TextureRegion> walkUp;
-    Animation<TextureRegion> walkLeft;
-    Animation<TextureRegion> walkDown;
-    Animation<TextureRegion> walkRight;
-    Animation<TextureRegion> walkUpLeft;
-    Animation<TextureRegion> walkUpRight;
-    Animation<TextureRegion> walkDownLeft;
-    Animation<TextureRegion> walkDownRight;
-    Animation<TextureRegion> currentAnimation;
-    float stateTime = 0f;
+    private Texture spriteSheet;
+    private Animation<TextureRegion> walkUp;
+    private Animation<TextureRegion> walkLeft;
+    private Animation<TextureRegion> walkDown;
+    private Animation<TextureRegion> walkRight;
+    private Animation<TextureRegion> walkUpLeft;
+    private Animation<TextureRegion> walkUpRight;
+    private Animation<TextureRegion> walkDownLeft;
+    private Animation<TextureRegion> walkDownRight;
+    private Animation<TextureRegion> currentAnimation;
+    private float stateTime = 0f;
 
     public Player() {
         spriteSheet = new Texture("player.png");
@@ -107,5 +107,12 @@ public class Player {
         if (spriteSheet != null) {
             spriteSheet.dispose();
         }
+    }
+    public float getX() {
+        return x;
+    }
+
+    public float getY() {
+        return y;
     }
 }
