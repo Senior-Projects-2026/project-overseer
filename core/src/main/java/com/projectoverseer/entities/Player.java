@@ -103,6 +103,11 @@ public class Player {
         batch.draw(currentFrame, x, y);
     }
 
+    public void renderAt(SpriteBatch batch, float renderX, float renderY) {
+        TextureRegion currentFrame = currentAnimation.getKeyFrame(stateTime, true);
+        batch.draw(currentFrame, renderX, renderY);
+    }
+
     public void dispose() {
         if (spriteSheet != null) {
             spriteSheet.dispose();

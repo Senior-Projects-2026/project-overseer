@@ -12,9 +12,15 @@ import com.esotericsoftware.kryonet.Listener;
 import com.projectoverseer.entities.Player;
 import com.projectoverseer.shared.Network;
 import com.projectoverseer.shared.Network.Ping;
+import com.projectoverseer.shared.Network.PlayerLeft;
+import com.projectoverseer.shared.Network.PlayerPosition;
+import com.projectoverseer.shared.Network.PositionUpdate;
+import com.projectoverseer.shared.Network.Welcome;
 import com.projectoverseer.ui.MainMenu;
 
 import java.io.IOException;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /** {@link com.badlogic.gdx.ApplicationListener} implementation shared by all platforms. */
 public class Main extends ApplicationAdapter {
@@ -30,8 +36,11 @@ public class Main extends ApplicationAdapter {
     private OrthographicCamera camera;
     private FitViewport viewport;
     private Player player;
+    private final Map<Integer, PlayerPosition> otherPlayers = new ConcurrentHashMap<>();
 
     private volatile boolean isConnected;
+    private volatile int playerId = -1;
+    private float positionUpdateTimer;
     private GameState gameState = GameState.MENU;
 
     @Override
@@ -58,6 +67,14 @@ public class Main extends ApplicationAdapter {
                 if (object instanceof Ping) {
                     Ping ping = (Ping) object;
                     System.out.println("CLIENT: Received from server -> " + ping.message);
+                } else if (object instanceof Welcome) {
+                    playerId = ((Welcome) object).playerId;
+                    System.out.println("CLIENT: Assigned player ID " + playerId);
+                } else if (object instanceof PlayerPosition) {
+                    PlayerPosition position = (PlayerPosition) object;
+                    if (position.playerId != playerId) otherPlayers.put(position.playerId, position);
+                } else if (object instanceof PlayerLeft) {
+                    otherPlayers.remove(((PlayerLeft) object).playerId);
                 }
             }
 
@@ -65,6 +82,9 @@ public class Main extends ApplicationAdapter {
             public void disconnected(Connection connection) {
                 System.out.println("CLIENT: Lost connection to server!");
                 isConnected = false;
+                playerId = -1;
+                otherPlayers.clear();
+                Gdx.app.postRunnable(() -> showMenu("Connection lost. Choose Play to reconnect."));
             }
         });
     }
@@ -75,18 +95,19 @@ public class Main extends ApplicationAdapter {
         }
 
         gameState = GameState.CONNECTING;
-        menu.show("Connecting to localhost...");
+        menu.show("Connecting to " + Network.SERVER_HOST + "...");
         menu.hide();
 
         new Thread(() -> {
             try {
-                client.connect(5000, "localhost", Network.TCP_PORT, Network.UDP_PORT);
+                client.connect(5000, Network.SERVER_HOST, Network.TCP_PORT, Network.UDP_PORT);
 
                 Ping myPing = new Ping();
                 myPing.message = "Hello Server, I am a new client!";
                 client.sendTCP(myPing);
 
                 isConnected = true;
+                positionUpdateTimer = 0f;
                 Gdx.app.postRunnable(() -> gameState = GameState.PLAYING);
             } catch (IOException e) {
                 System.err.println("CLIENT: Could not connect to server!");
@@ -110,6 +131,14 @@ public class Main extends ApplicationAdapter {
         }
 
         player.update();
+
+        if (isConnected) {
+            positionUpdateTimer += Gdx.graphics.getDeltaTime() * 1000f;
+            if (positionUpdateTimer >= Network.POSITION_UPDATE_INTERVAL_MS) {
+                positionUpdateTimer = 0f;
+                client.sendUDP(new PositionUpdate(player.getX(), player.getY()));
+            }
+        }
 
         float deadzoneWidth = 100f;
         float deadzoneHeight = 80f;
@@ -140,6 +169,9 @@ public class Main extends ApplicationAdapter {
         batch.setProjectionMatrix(camera.combined);
         batch.begin();
         player.render(batch);
+        for (PlayerPosition other : otherPlayers.values()) {
+            player.renderAt(batch, other.x, other.y);
+        }
         batch.end();
     }
 
