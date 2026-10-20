@@ -9,5 +9,6 @@ public interface Pathfinder {
     List<TilePosition> findPath(
             TilePosition start,
             TilePosition end,
-            List<Chunk> chunks);
+            List<Chunk> chunks
+        ) throws IllegalArgumentException;
 }

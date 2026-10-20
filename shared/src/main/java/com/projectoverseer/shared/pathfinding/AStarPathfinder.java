@@ -16,15 +16,28 @@ public class AStarPathfinder implements Pathfinder {
         {0, 1}, {1, 0}, {0, -1}, {-1, 0}
     };
 
+    /**
+     * Finds the shortest path between two walkable tiles using A*.
+     * Returns an empty list if either tile is blocked or no route exists.
+     *
+     * @throws IllegalArgumentException if any argument is null
+     */
     @Override
     public List<TilePosition> findPath(
             TilePosition start,
             TilePosition end,
             List<Chunk> chunks
-    ) {
+    ) throws IllegalArgumentException {
+        if (start == null || end == null || chunks == null) {
+            throw new IllegalArgumentException("Start, end, and chunks must not be null");
+        }
+
         Map<Long, Chunk> chunkMap = new HashMap<>();
 
         for (Chunk chunk : chunks) {
+            if (chunk == null) {
+                throw new IllegalArgumentException("Chunks must not contain null elements");
+            }
             chunkMap.put(chunkKey(chunk.getChunkX(), chunk.getChunkY()), chunk);
         }
 
@@ -87,6 +100,9 @@ public class AStarPathfinder implements Pathfinder {
         return List.of();
     }
 
+    /**
+     * Checks whether a world tile belongs to a loaded chunk and is walkable.
+     */
     private boolean isWalkable(TilePosition position, Map<Long, Chunk> chunks) {
         int chunkX = Chunk.chunkCoordinate(position.x());
         int chunkY = Chunk.chunkCoordinate(position.y());
@@ -99,11 +115,17 @@ public class AStarPathfinder implements Pathfinder {
         );
     }
 
+    /**
+     * Estimates the remaining distance using Manhattan distance.
+     */
     private long heuristic(TilePosition a, TilePosition b) {
         return Math.abs((long) a.x() - b.x())
                 + Math.abs((long) a.y() - b.y());
     }
 
+    /**
+     * Reconstructs the path from the destination back to the start.
+     */
     private List<TilePosition> reconstructPath(
             Map<TilePosition, TilePosition> cameFrom,
             TilePosition end
@@ -120,9 +142,15 @@ public class AStarPathfinder implements Pathfinder {
         return path;
     }
 
+    /**
+     * Creates a unique key for a chunk's coordinates.
+     */
     private static long chunkKey(int x, int y) {
         return ((long) x << 32) | (y & 0xFFFFFFFFL);
     }
 
+    /**
+     * Stores a tile in the search queue with its actual and estimated costs.
+     */
     private record Node(TilePosition position, long g, long f) {}
 }

@@ -154,4 +154,27 @@ public class AStarPathfinderTest {
 
         assertTrue(path.isEmpty());
     }
+
+    @Test
+    public void throwsWhenArgumentsAreNull() {
+        AStarPathfinder pathfinder = new AStarPathfinder();
+        List<Chunk> chunks = createMap(0, 0, 0, 0);
+
+
+        assertThrows(IllegalArgumentException.class,
+                () -> pathfinder.findPath(null, new TilePosition(1, 1), chunks));
+
+        assertThrows(IllegalArgumentException.class,
+                () -> pathfinder.findPath(new TilePosition(1, 1), null, chunks));
+
+        assertThrows(IllegalArgumentException.class,
+                () -> pathfinder.findPath(
+                        new TilePosition(1, 1), new TilePosition(2, 2), null));
+
+        chunks.add(null);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> pathfinder.findPath(
+                        new TilePosition(1, 1), new TilePosition(2, 2), chunks));
+    }
 }
