@@ -12,6 +12,7 @@ import com.esotericsoftware.kryonet.Listener;
 import com.projectoverseer.entities.Player;
 import com.projectoverseer.shared.Network;
 import com.projectoverseer.shared.Network.Ping;
+import com.projectoverseer.ui.GameHUD;
 import com.projectoverseer.ui.MainMenu;
 
 import java.io.IOException;
@@ -31,6 +32,8 @@ public class Main extends ApplicationAdapter {
     private FitViewport viewport;
     private Player player;
 
+    private GameHUD hud;
+
     private volatile boolean isConnected;
     private GameState gameState = GameState.MENU;
 
@@ -41,6 +44,12 @@ public class Main extends ApplicationAdapter {
         viewport = new FitViewport(640, 360, camera);
 
         createClient();
+
+        hud = new GameHUD(
+            player.getStats(),
+            player.getInventory()
+        );
+
         menu = new MainMenu(this::connectToServer);
         menu.show("Choose Play to connect to the server.");
     }
@@ -87,7 +96,10 @@ public class Main extends ApplicationAdapter {
                 client.sendTCP(myPing);
 
                 isConnected = true;
-                Gdx.app.postRunnable(() -> gameState = GameState.PLAYING);
+                Gdx.app.postRunnable(() -> {
+                    gameState = GameState.PLAYING;
+                    Gdx.input.setInputProcessor(hud.getStage());
+                });
             } catch (IOException e) {
                 System.err.println("CLIENT: Could not connect to server!");
                 e.printStackTrace();
@@ -141,6 +153,9 @@ public class Main extends ApplicationAdapter {
         batch.begin();
         player.render(batch);
         batch.end();
+
+        hud.render(Gdx.graphics.getDeltaTime());
+
     }
 
     @Override
@@ -150,6 +165,11 @@ public class Main extends ApplicationAdapter {
         }
 
         viewport.update(width, height, false);
+
+        if (hud != null) {
+            hud.resize(width, height);
+        }
+
     }
 
     @Override
@@ -160,5 +180,10 @@ public class Main extends ApplicationAdapter {
         if (menu != null) menu.dispose();
         if (batch != null) batch.dispose();
         if (player != null) player.dispose();
+
+        if (hud != null) {
+            hud.dispose();
+        }
+
     }
 }
