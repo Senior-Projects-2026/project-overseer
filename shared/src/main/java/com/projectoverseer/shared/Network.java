@@ -56,9 +56,16 @@ public class Network {
     public static class PositionUpdate {
         public float x;
         public float y;
+        public int direction;
+        public boolean moving;
 
         public PositionUpdate() {}
-        public PositionUpdate(float x, float y) { this.x = x; this.y = y; }
+        public PositionUpdate(float x, float y, int direction, boolean moving) {
+            this.x = x;
+            this.y = y;
+            this.direction = direction;
+            this.moving = moving;
+        }
     }
 
     /** Server to clients: a player's latest world position. */
@@ -66,12 +73,16 @@ public class Network {
         public int playerId;
         public float x;
         public float y;
+        public int direction;
+        public boolean moving;
 
         public PlayerPosition() {}
-        public PlayerPosition(int playerId, float x, float y) {
+        public PlayerPosition(int playerId, float x, float y, int direction, boolean moving) {
             this.playerId = playerId;
             this.x = x;
             this.y = y;
+            this.direction = direction;
+            this.moving = moving;
         }
     }
 

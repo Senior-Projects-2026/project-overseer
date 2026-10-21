@@ -46,7 +46,8 @@ public class ServerLauncher {
                     connection.sendTCP(response);
                 } else if (object instanceof PositionUpdate) {
                     PositionUpdate update = (PositionUpdate) object;
-                    PlayerPosition position = new PlayerPosition(connection.getID(), update.x, update.y);
+                    PlayerPosition position = new PlayerPosition(
+                        connection.getID(), update.x, update.y, update.direction, update.moving);
                     players.put(connection.getID(), position);
                     for (Connection recipient : server.getConnections()) {
                         if (recipient.getID() != connection.getID()) recipient.sendUDP(position);
