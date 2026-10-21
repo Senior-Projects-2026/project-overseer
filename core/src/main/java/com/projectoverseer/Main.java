@@ -17,10 +17,14 @@ import com.projectoverseer.shared.Network.PlayerPosition;
 import com.projectoverseer.shared.Network.PositionUpdate;
 import com.projectoverseer.shared.Network.Welcome;
 import com.projectoverseer.ui.MainMenu;
+import com.projectoverseer.shared.world.Chunk;
+import com.projectoverseer.world.DemoWorld;
+import com.projectoverseer.world.TileRenderer;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.List;
 
 /** {@link com.badlogic.gdx.ApplicationListener} implementation shared by all platforms. */
 public class Main extends ApplicationAdapter {
@@ -37,6 +41,8 @@ public class Main extends ApplicationAdapter {
     private FitViewport viewport;
     private Player player;
     private final Map<Integer, Player> otherPlayers = new HashMap<>();
+    private TileRenderer tileRenderer;
+    private List<Chunk> chunks;
 
     private volatile boolean isConnected;
     private volatile int playerId = -1;
@@ -48,6 +54,8 @@ public class Main extends ApplicationAdapter {
         batch = new SpriteBatch();
         camera = new OrthographicCamera();
         viewport = new FitViewport(640, 360, camera);
+        tileRenderer = new TileRenderer();
+        chunks = DemoWorld.createChunks();
 
         createClient();
         menu = new MainMenu(this::connectToServer);
@@ -180,9 +188,11 @@ public class Main extends ApplicationAdapter {
 
         camera.update();
 
-        ScreenUtils.clear(0f, 0.6f, 0f, 1f);
+        ScreenUtils.clear(0.08f, 0.10f, 0.12f, 1f);
+        viewport.apply();
         batch.setProjectionMatrix(camera.combined);
         batch.begin();
+        tileRenderer.render(batch, chunks, camera);
         player.render(batch);
         for (Player other : otherPlayers.values()) other.render(batch);
         batch.end();
@@ -206,6 +216,7 @@ public class Main extends ApplicationAdapter {
         if (batch != null) batch.dispose();
         if (player != null) player.dispose();
         disposeOtherPlayers();
+        if (tileRenderer != null) tileRenderer.dispose();
     }
 
     private void disposeOtherPlayers() {
