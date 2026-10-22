@@ -12,12 +12,18 @@ import com.esotericsoftware.kryonet.Listener;
 import com.projectoverseer.entities.Player;
 import com.projectoverseer.shared.Network;
 import com.projectoverseer.shared.Network.Ping;
+import com.projectoverseer.shared.Network.PlayerLeft;
+import com.projectoverseer.shared.Network.PlayerPosition;
+import com.projectoverseer.shared.Network.PositionUpdate;
+import com.projectoverseer.shared.Network.Welcome;
 import com.projectoverseer.ui.MainMenu;
 import com.projectoverseer.shared.world.Chunk;
 import com.projectoverseer.world.DemoWorld;
 import com.projectoverseer.world.TileRenderer;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.List;
 
 /** {@link com.badlogic.gdx.ApplicationListener} implementation shared by all platforms. */
@@ -34,10 +40,13 @@ public class Main extends ApplicationAdapter {
     private OrthographicCamera camera;
     private FitViewport viewport;
     private Player player;
+    private final Map<Integer, Player> otherPlayers = new HashMap<>();
     private TileRenderer tileRenderer;
     private List<Chunk> chunks;
 
     private volatile boolean isConnected;
+    private volatile int playerId = -1;
+    private float positionUpdateTimer;
     private GameState gameState = GameState.MENU;
 
     @Override
@@ -58,7 +67,7 @@ public class Main extends ApplicationAdapter {
         client.start();
         Network.register(client);
 
-        player = new Player();
+        player = new Player(true);
 
         client.addListener(new Listener() {
             @Override
@@ -66,6 +75,24 @@ public class Main extends ApplicationAdapter {
                 if (object instanceof Ping) {
                     Ping ping = (Ping) object;
                     System.out.println("CLIENT: Received from server -> " + ping.message);
+                } else if (object instanceof Welcome) {
+                    playerId = ((Welcome) object).playerId;
+                    System.out.println("CLIENT: Assigned player ID " + playerId);
+                } else if (object instanceof PlayerPosition) {
+                    PlayerPosition position = (PlayerPosition) object;
+                    if (position.playerId != playerId) {
+                        Gdx.app.postRunnable(() -> {
+                            Player remote = otherPlayers.computeIfAbsent(
+                                position.playerId, id -> new Player(false));
+                            remote.setRemoteState(position.x, position.y, position.direction, position.moving);
+                        });
+                    }
+                } else if (object instanceof PlayerLeft) {
+                    int leftId = ((PlayerLeft) object).playerId;
+                    Gdx.app.postRunnable(() -> {
+                        Player removed = otherPlayers.remove(leftId);
+                        if (removed != null) removed.dispose();
+                    });
                 }
             }
 
@@ -73,6 +100,11 @@ public class Main extends ApplicationAdapter {
             public void disconnected(Connection connection) {
                 System.out.println("CLIENT: Lost connection to server!");
                 isConnected = false;
+                playerId = -1;
+                Gdx.app.postRunnable(() -> {
+                    disposeOtherPlayers();
+                    showMenu("Connection lost. Choose Play to reconnect.");
+                });
             }
         });
     }
@@ -83,18 +115,19 @@ public class Main extends ApplicationAdapter {
         }
 
         gameState = GameState.CONNECTING;
-        menu.show("Connecting to localhost...");
+        menu.show("Connecting to " + Network.SERVER_HOST + "...");
         menu.hide();
 
         new Thread(() -> {
             try {
-                client.connect(5000, "localhost", Network.TCP_PORT, Network.UDP_PORT);
+                client.connect(5000, Network.SERVER_HOST, Network.TCP_PORT, Network.UDP_PORT);
 
                 Ping myPing = new Ping();
                 myPing.message = "Hello Server, I am a new client!";
                 client.sendTCP(myPing);
 
                 isConnected = true;
+                positionUpdateTimer = 0f;
                 Gdx.app.postRunnable(() -> gameState = GameState.PLAYING);
             } catch (IOException e) {
                 System.err.println("CLIENT: Could not connect to server!");
@@ -118,6 +151,17 @@ public class Main extends ApplicationAdapter {
         }
 
         player.update();
+
+        if (isConnected) {
+            positionUpdateTimer += Gdx.graphics.getDeltaTime() * 1000f;
+            if (positionUpdateTimer >= Network.POSITION_UPDATE_INTERVAL_MS) {
+                positionUpdateTimer = 0f;
+                client.sendUDP(new PositionUpdate(
+                    player.getX(), player.getY(), player.getDirection(), player.isMoving()));
+            }
+        }
+
+        for (Player other : otherPlayers.values()) other.update();
 
         float deadzoneWidth = 100f;
         float deadzoneHeight = 80f;
@@ -150,6 +194,7 @@ public class Main extends ApplicationAdapter {
         batch.begin();
         tileRenderer.render(batch, chunks, camera);
         player.render(batch);
+        for (Player other : otherPlayers.values()) other.render(batch);
         batch.end();
     }
 
@@ -170,6 +215,12 @@ public class Main extends ApplicationAdapter {
         if (menu != null) menu.dispose();
         if (batch != null) batch.dispose();
         if (player != null) player.dispose();
+        disposeOtherPlayers();
         if (tileRenderer != null) tileRenderer.dispose();
+    }
+
+    private void disposeOtherPlayers() {
+        for (Player other : otherPlayers.values()) other.dispose();
+        otherPlayers.clear();
     }
 }
