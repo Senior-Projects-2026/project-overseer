@@ -6,6 +6,7 @@ import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.utils.ScreenUtils;
+import com.badlogic.gdx.utils.Timer;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.esotericsoftware.kryonet.Client;
 import com.esotericsoftware.kryonet.Connection;
@@ -124,9 +125,20 @@ public class Main extends ApplicationAdapter {
                 System.out.println("CLIENT: Lost connection to server!");
                 isConnected = false;
                 playerId = -1;
+
                 Gdx.app.postRunnable(() -> {
                     disposeOtherPlayers();
-                    showMenu("Connection lost. Choose Play to reconnect.");
+
+                    if (gameState == GameState.VICTORY) {
+                        Timer.schedule(new Timer.Task() {
+                            @Override
+                            public void run() {
+                                showMenu("Victory! Ready for another round?");
+                            }
+                        }, 10f);
+                    } else {
+                        showMenu("Connection lost. Choose Play to reconnect.");
+                    }
                 });
             }
         });

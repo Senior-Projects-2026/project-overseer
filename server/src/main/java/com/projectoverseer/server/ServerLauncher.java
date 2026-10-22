@@ -18,15 +18,20 @@ import java.util.Map;
 
 /** Launches the server application. */
 public class ServerLauncher {
-    //todo: server.properties for the ones below
-    private static float timeTimer = 0;
+    // Server configuration
+    private static int serverSleepTime = 50;
+    private static float serverSyncInterval = 1f;
+
+    // Day-Night logic
     private static int day = 1;
+    private static float timeTimer = 0;
     private static float dayLengthSeconds = 10;
     private static float nightThreshold = 0.7f;
     private static int winThreshold = 5;
 
-    private static int serverSleepTime = 50;
-    private static float serverSyncInterval = 1f;
+    // Internal timers
+    private static float syncTimer = 0f;
+    private static long lastTime;
 
     public static void main(String[] args) throws IOException {
         Server server = new Server();
@@ -77,19 +82,17 @@ public class ServerLauncher {
         });
 
         server.start();
-
         System.out.println("SERVER: Listening on TCP " + Network.TCP_PORT + " and UDP " + Network.UDP_PORT + "...");
 
-        float syncTimer = 0f;
-        long lastTime = System.nanoTime();
+        lastTime = System.nanoTime();
 
         while (true) {
             long currentTime = System.nanoTime();
             float delta = (currentTime - lastTime) / 1_000_000_000.0f;
             lastTime = currentTime;
 
-            update(delta);
-            syncTimer += delta;
+            update(delta, server);
+
             try {
                 Thread.sleep(serverSleepTime); // Target ~20 TPS
             } catch (InterruptedException e) {
@@ -97,36 +100,35 @@ public class ServerLauncher {
                 Thread.currentThread().interrupt();
                 break;
             }
-
-            if (syncTimer >= serverSyncInterval) {
-                syncTimer = 0f;
-
-                boolean isNight = timeTimer > dayLengthSeconds * nightThreshold;
-                Network.TimeSync syncPacket = new TimeSync();
-                syncPacket.currentDay = day;
-                syncPacket.isNight = isNight;
-                server.sendToAllTCP(syncPacket);
-
-                if (day > winThreshold) {
-                    Network.GameEnd endPacket = new GameEnd();
-                    endPacket.isVictory = true;
-                    server.sendToAllTCP(endPacket);
-                    System.out.println("SERVER: " + winThreshold + " days survived. Victory packet sent!");
-
-                    break;
-                }
-
-            }
         }
     }
 
-    public static void update(float delta) {
+    public static void update(float delta, Server server) {
         timeTimer += delta;
+        syncTimer += delta;
 
         if (timeTimer >= dayLengthSeconds) {
             timeTimer = 0;
             day++;
             System.out.println("SERVER: A new day begins! Day " + day);
+        }
+
+        if (syncTimer >= serverSyncInterval) {
+            syncTimer = 0f;
+
+            boolean isNight = timeTimer > dayLengthSeconds * nightThreshold;
+            TimeSync syncPacket = new TimeSync();
+            syncPacket.currentDay = day;
+            syncPacket.isNight = isNight;
+            server.sendToAllTCP(syncPacket);
+
+            if (day > winThreshold) {
+                GameEnd endPacket = new GameEnd();
+                endPacket.isVictory = true;
+                server.sendToAllTCP(endPacket);
+                System.out.println("SERVER: " + winThreshold + " days survived. Victory packet sent!");
+                System.exit(0); // Close server when win is reached
+            }
         }
     }
 }
