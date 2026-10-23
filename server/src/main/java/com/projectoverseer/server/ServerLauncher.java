@@ -9,6 +9,8 @@ import com.projectoverseer.shared.Network.PlayerLeft;
 import com.projectoverseer.shared.Network.PlayerPosition;
 import com.projectoverseer.shared.Network.PositionUpdate;
 import com.projectoverseer.shared.Network.Welcome;
+import com.projectoverseer.shared.Network.TimeSync;
+import com.projectoverseer.shared.Network.GameEnd;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -16,6 +18,21 @@ import java.util.Map;
 
 /** Launches the server application. */
 public class ServerLauncher {
+    // Server configuration
+    private static int serverSleepTime = 50;
+    private static float serverSyncInterval = 1f;
+
+    // Day-Night logic
+    private static int day = 1;
+    private static float timeTimer = 0;
+    private static float dayLengthSeconds = 10;
+    private static float nightThreshold = 0.7f;
+    private static int winThreshold = 5;
+
+    // Internal timers
+    private static float syncTimer = 0f;
+    private static long lastTime;
+
     public static void main(String[] args) throws IOException {
         Server server = new Server();
         Network.register(server);
@@ -65,7 +82,53 @@ public class ServerLauncher {
         });
 
         server.start();
-
         System.out.println("SERVER: Listening on TCP " + Network.TCP_PORT + " and UDP " + Network.UDP_PORT + "...");
+
+        lastTime = System.nanoTime();
+
+        while (true) {
+            long currentTime = System.nanoTime();
+            float delta = (currentTime - lastTime) / 1_000_000_000.0f;
+            lastTime = currentTime;
+
+            update(delta, server);
+
+            try {
+                Thread.sleep(serverSleepTime); // Target ~20 TPS
+            } catch (InterruptedException e) {
+                System.err.println("SERVER: Thread interrupted!");
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+    }
+
+    public static void update(float delta, Server server) {
+        timeTimer += delta;
+        syncTimer += delta;
+
+        if (timeTimer >= dayLengthSeconds) {
+            timeTimer = 0;
+            day++;
+            System.out.println("SERVER: A new day begins! Day " + day);
+        }
+
+        if (syncTimer >= serverSyncInterval) {
+            syncTimer = 0f;
+
+            boolean isNight = timeTimer > dayLengthSeconds * nightThreshold;
+            TimeSync syncPacket = new TimeSync();
+            syncPacket.currentDay = day;
+            syncPacket.isNight = isNight;
+            server.sendToAllTCP(syncPacket);
+
+            if (day > winThreshold) {
+                GameEnd endPacket = new GameEnd();
+                endPacket.isVictory = true;
+                server.sendToAllTCP(endPacket);
+                System.out.println("SERVER: " + winThreshold + " days survived. Victory packet sent!");
+                System.exit(0); // Close server when win is reached
+            }
+        }
     }
 }

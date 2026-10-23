@@ -9,6 +9,7 @@ import java.io.FileInputStream;
 import java.util.Properties;
 
 public class Network {
+    // 1. Constants and configuration
     public static final Properties CONFIG = loadConfig();
     public static final int TCP_PORT = Integer.parseInt(CONFIG.getProperty("server.tcpPort", "54555"));
     public static final int UDP_PORT = Integer.parseInt(CONFIG.getProperty("server.udpPort", "54777"));
@@ -16,6 +17,7 @@ public class Network {
     public static final int POSITION_UPDATE_INTERVAL_MS = Integer.parseInt(
         CONFIG.getProperty("network.positionUpdateIntervalMs", "50"));
 
+    // 2. Utils (Config and Kryo register)
     private static Properties loadConfig() {
         Properties properties = new Properties();
         File localConfig = new File("config.properties");
@@ -42,8 +44,13 @@ public class Network {
         kryo.register(PositionUpdate.class);
         kryo.register(PlayerPosition.class);
         kryo.register(PlayerLeft.class);
+        kryo.register(TimeSync.class);
+        kryo.register(GameEnd.class);
     }
 
+    // 3. DTOs
+
+    // Utils
     public static class Ping {
         public String message;
     }
@@ -52,6 +59,7 @@ public class Network {
         public int playerId;
     }
 
+    // Movement
     /** Client to server: the sender's latest world position. */
     public static class PositionUpdate {
         public float x;
@@ -90,5 +98,16 @@ public class Network {
         public int playerId;
         public PlayerLeft() {}
         public PlayerLeft(int playerId) { this.playerId = playerId; }
+    }
+
+    // Game state
+
+    public static class TimeSync {
+        public int currentDay;
+        public boolean isNight;
+    }
+
+    public static class GameEnd {
+        public boolean isVictory;
     }
 }
