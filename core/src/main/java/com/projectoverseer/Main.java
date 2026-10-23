@@ -2,16 +2,21 @@ package com.projectoverseer;
 
 import com.badlogic.gdx.ApplicationAdapter;
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.utils.ScreenUtils;
+import com.badlogic.gdx.utils.Timer;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.esotericsoftware.kryonet.Client;
 import com.esotericsoftware.kryonet.Connection;
 import com.esotericsoftware.kryonet.Listener;
 import com.projectoverseer.entities.Player;
+import com.projectoverseer.environment.DayNightRenderer;
 import com.projectoverseer.shared.Network;
 import com.projectoverseer.shared.Network.Ping;
+import com.projectoverseer.shared.Network.TimeSync;
+import com.projectoverseer.shared.Network.GameEnd;
 import com.projectoverseer.shared.Network.PlayerLeft;
 import com.projectoverseer.shared.Network.PlayerPosition;
 import com.projectoverseer.shared.Network.PositionUpdate;
@@ -31,14 +36,22 @@ public class Main extends ApplicationAdapter {
     private enum GameState {
         MENU,
         CONNECTING,
-        PLAYING
+        PLAYING,
+        VICTORY
     }
 
     private Client client;
     private SpriteBatch batch;
     private MainMenu menu;
+    private GameState gameState = GameState.MENU;
+
+    private volatile int currentDay = 1;
+    private volatile boolean isNight = false;
+    private DayNightRenderer dayNightRenderer;
+
     private OrthographicCamera camera;
     private FitViewport viewport;
+
     private Player player;
     private final Map<Integer, Player> otherPlayers = new HashMap<>();
     private TileRenderer tileRenderer;
@@ -47,7 +60,6 @@ public class Main extends ApplicationAdapter {
     private volatile boolean isConnected;
     private volatile int playerId = -1;
     private float positionUpdateTimer;
-    private GameState gameState = GameState.MENU;
 
     @Override
     public void create() {
@@ -56,6 +68,7 @@ public class Main extends ApplicationAdapter {
         viewport = new FitViewport(640, 360, camera);
         tileRenderer = new TileRenderer();
         chunks = DemoWorld.createChunks();
+        dayNightRenderer = new DayNightRenderer();
 
         createClient();
         menu = new MainMenu(this::connectToServer);
@@ -93,6 +106,17 @@ public class Main extends ApplicationAdapter {
                         Player removed = otherPlayers.remove(leftId);
                         if (removed != null) removed.dispose();
                     });
+                } else if (object instanceof TimeSync) {
+                    TimeSync sync = (TimeSync) object;
+                    currentDay = sync.currentDay;
+                    isNight = sync.isNight;
+                } else if (object instanceof GameEnd) {
+                    GameEnd end = (GameEnd) object;
+                    if (end.isVictory) {
+                        Gdx.app.postRunnable(() -> {
+                            gameState = GameState.VICTORY;
+                        });
+                    }
                 }
             }
 
@@ -101,9 +125,20 @@ public class Main extends ApplicationAdapter {
                 System.out.println("CLIENT: Lost connection to server!");
                 isConnected = false;
                 playerId = -1;
+
                 Gdx.app.postRunnable(() -> {
                     disposeOtherPlayers();
-                    showMenu("Connection lost. Choose Play to reconnect.");
+
+                    if (gameState == GameState.VICTORY) {
+                        Timer.schedule(new Timer.Task() {
+                            @Override
+                            public void run() {
+                                showMenu("Victory! Ready for another round?");
+                            }
+                        }, 10f);
+                    } else {
+                        showMenu("Connection lost. Choose Play to reconnect.");
+                    }
                 });
             }
         });
@@ -150,6 +185,12 @@ public class Main extends ApplicationAdapter {
             return;
         }
 
+        if (gameState == GameState.VICTORY) {
+            ScreenUtils.clear(0.1f, 0.4f, 0.1f, 1f);
+            dayNightRenderer.renderVictoryScreen(camera, batch);
+            return;
+        }
+
         player.update();
 
         if (isConnected) {
@@ -171,8 +212,8 @@ public class Main extends ApplicationAdapter {
         float bottomBoundary = camera.position.y - deadzoneHeight;
         float topBoundary = camera.position.y + deadzoneHeight;
 
-        float playerX = player.getX()+20;
-        float playerY = player.getY()+20;
+        float playerX = player.getX() + 20;
+        float playerY = player.getY() + 20;
 
         if (playerX < leftBoundary) {
             camera.position.x = playerX + deadzoneWidth;
@@ -186,16 +227,35 @@ public class Main extends ApplicationAdapter {
             camera.position.y = playerY - deadzoneHeight;
         }
 
+        camera.position.x = Math.round(camera.position.x);
+        camera.position.y = Math.round(camera.position.y);
+
         camera.update();
 
-        ScreenUtils.clear(0.08f, 0.10f, 0.12f, 1f);
+        // Making the entire screen black for black screen borders
+        Gdx.gl.glClearColor(0, 0, 0, 1);
+        Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
+
         viewport.apply();
+
+        // Scissor test for game background
+        Gdx.gl.glEnable(GL20.GL_SCISSOR_TEST);
+        Gdx.gl.glScissor(viewport.getScreenX(), viewport.getScreenY(), viewport.getScreenWidth(), viewport.getScreenHeight());
+
+        // Grey background color
+        Gdx.gl.glClearColor(0.08f, 0.10f, 0.12f, 1f);
+        Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
+
+        // Disable Scissor test for subsequent rendering
+        Gdx.gl.glDisable(GL20.GL_SCISSOR_TEST);
+
         batch.setProjectionMatrix(camera.combined);
         batch.begin();
         tileRenderer.render(batch, chunks, camera);
         player.render(batch);
         for (Player other : otherPlayers.values()) other.render(batch);
         batch.end();
+        dayNightRenderer.render(camera, batch, currentDay, isNight);
     }
 
     @Override
@@ -217,6 +277,7 @@ public class Main extends ApplicationAdapter {
         if (player != null) player.dispose();
         disposeOtherPlayers();
         if (tileRenderer != null) tileRenderer.dispose();
+        if (dayNightRenderer != null) dayNightRenderer.dispose();
     }
 
     private void disposeOtherPlayers() {
