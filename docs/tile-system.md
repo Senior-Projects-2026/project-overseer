@@ -69,8 +69,8 @@ global origin overflows an integer are also rejected.
 
 ## Obstacles and walkability
 
-An obstacle is currently a cell whose terrain type has `isWalkable() == false`.
-There is no separate obstacle entity or collision shape in this implementation.
+`TileType.isWalkable()` describes terrain. `Chunk.isWalkable(x, y)` additionally
+checks the resource occupying the cell: both terrain and resource must permit movement.
 
 | Type | Walkable | Preview appearance |
 | --- | --- | --- |
@@ -92,10 +92,30 @@ then call `isWalkable` with its local coordinates. The caller manages the collec
 of chunks and decides how to handle missing chunks; this API does not define them
 as either walkable or blocked.
 
-This flag describes terrain only. Entity collision, player size, diagonal movement
-rules, dynamic obstacles and the pathfinding algorithm belong to their respective
-tasks. The current player movement does not yet consult this flag, so the player
-can walk across water and rock in the preview.
+`ResourceType.TREE` and `ResourceType.ROCK` are separate objects above the terrain,
+represented by immutable `WorldResource` values with global tile coordinates.
+Each cell can hold at most one resource, and both current resource types block movement.
+They are not inventory items or network packets.
+
+```java
+chunk.setTile(5, 3, TileType.GRASS);
+chunk.setResource(5, 3, ResourceType.TREE);
+boolean blocked = !chunk.isWalkable(5, 3); // true
+WorldResource removed = chunk.removeResource(5, 3);
+// The tile is still GRASS and is walkable again.
+```
+
+`getResource` returns null for an empty cell; `removeResource` returns the removed
+object or null. `setResource` replaces the previous object and rejects null types.
+All three take local coordinates. `getResources()` returns an immutable snapshot.
+Placement rules, including avoiding water, are the generator/caller's responsibility.
+`TileType.ROCK` remains blocked terrain for compatibility; collectible rocks use
+`ResourceType.ROCK` over a terrain tile instead.
+
+Entity collision, player size, harvesting and resource-update networking remain
+separate concerns. The current player movement does not yet consult this flag,
+so the player can walk across blocked terrain in the preview. A* uses the chunk's
+walkability query and therefore also avoids resources placed through this API.
 
 ## Rendering and camera culling
 

@@ -1,6 +1,8 @@
 package com.projectoverseer.shared.world;
 
 import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -16,6 +18,7 @@ public final class Chunk {
     private final int originTileX;
     private final int originTileY;
     private final TileType[] tiles = new TileType[SIZE * SIZE];
+    private final WorldResource[] resources = new WorldResource[SIZE * SIZE];
 
     /**
      * Creates a fully initialized chunk; no cell is null
@@ -56,9 +59,46 @@ public final class Chunk {
         tiles[index] = Objects.requireNonNull(type, "type");
     }
 
-    /** Terrain query for collision/pathfinding consumers; does not move or stop entities. */
+    /**
+     * Terrain and resource query for collision/pathfinding consumers.
+     * This does not itself move or stop entities.
+     */
     public boolean isWalkable(int localX, int localY) {
-        return getTile(localX, localY).isWalkable();
+        int index = index(localX, localY);
+        WorldResource resource = resources[index];
+        return tiles[index].isWalkable()
+            && (resource == null || !resource.type().blocksMovement());
+    }
+
+    /** Returns the resource on a local cell, or null if it is empty. */
+    public WorldResource getResource(int localX, int localY) {
+        return resources[index(localX, localY)];
+    }
+
+    /**
+     * Places or replaces a resource without changing the underlying terrain.
+     * Placement rules (such as avoiding water) belong to the generator/caller.
+     */
+    public void setResource(int localX, int localY, ResourceType type) {
+        int index = index(localX, localY);
+        resources[index] = new WorldResource(type, originTileX + localX, originTileY + localY);
+    }
+
+    /** Removes and returns the resource, or null; the terrain is preserved. */
+    public WorldResource removeResource(int localX, int localY) {
+        int index = index(localX, localY);
+        WorldResource removed = resources[index];
+        resources[index] = null;
+        return removed;
+    }
+
+    /** Immutable snapshot in local row order, for rendering and world consumers. */
+    public List<WorldResource> getResources() {
+        List<WorldResource> result = new ArrayList<>();
+        for (WorldResource resource : resources) {
+            if (resource != null) result.add(resource);
+        }
+        return List.copyOf(result);
     }
 
     /** Finds the owning chunk on either axis, including negative world coordinates. */
