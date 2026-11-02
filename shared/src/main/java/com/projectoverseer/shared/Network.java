@@ -57,6 +57,8 @@ public class Network {
 
     public static class Welcome {
         public int playerId;
+        public long worldSeed;
+        public int generatorVersion;
     }
 
     // Movement

@@ -15,9 +15,13 @@ import com.projectoverseer.shared.Network.GameEnd;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.List;
+import com.projectoverseer.shared.world.Chunk;
+import com.projectoverseer.shared.world.generation.WorldGenerator;
 
 /** Launches the server application. */
 public class ServerLauncher {
+    private static List<Chunk> worldChunks;
     // Server configuration
     private static int serverSleepTime = 50;
     private static float serverSyncInterval = 1f;
@@ -34,6 +38,11 @@ public class ServerLauncher {
     private static long lastTime;
 
     public static void main(String[] args) throws IOException {
+        long worldSeed = Long.parseLong(Network.CONFIG.getProperty("world.seed", "123"));
+        WorldGenerator generator = new WorldGenerator(worldSeed);
+        worldChunks = generator.generateInitialChunks();
+        System.out.println("SERVER: World seed " + worldSeed + ", generator version "
+            + WorldGenerator.VERSION + ", chunks " + worldChunks.size());
         Server server = new Server();
         Network.register(server);
         server.bind(Network.TCP_PORT, Network.UDP_PORT);
@@ -45,6 +54,8 @@ public class ServerLauncher {
             public void connected(Connection connection) {
                 Welcome welcome = new Welcome();
                 welcome.playerId = connection.getID();
+                welcome.worldSeed = worldSeed;
+                welcome.generatorVersion = WorldGenerator.VERSION;
                 connection.sendTCP(welcome);
                 for (PlayerPosition player : players.values()) {
                     connection.sendTCP(player);
