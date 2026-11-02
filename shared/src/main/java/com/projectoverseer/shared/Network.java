@@ -46,6 +46,11 @@ public class Network {
         kryo.register(PlayerLeft.class);
         kryo.register(TimeSync.class);
         kryo.register(GameEnd.class);
+
+        kryo.register(PunchTree.class);
+        kryo.register(TreeRemoved.class);
+        kryo.register(WoodCountSync.class);
+
     }
 
     // 3. DTOs
@@ -112,4 +117,39 @@ public class Network {
     public static class GameEnd {
         public boolean isVictory;
     }
+
+    public static class PunchTree {
+        public int tileX;
+        public int tileY;
+
+        public PunchTree() {}
+
+        public PunchTree(int tileX, int tileY) {
+            this.tileX = tileX;
+            this.tileY = tileY;
+        }
+    }
+
+    public static class TreeRemoved {
+        public int tileX;
+        public int tileY;
+
+        public TreeRemoved() {}
+
+        public TreeRemoved(int tileX, int tileY) {
+            this.tileX = tileX;
+            this.tileY = tileY;
+        }
+    }
+
+    public static class WoodCountSync {
+        public int totalWood;
+
+        public WoodCountSync() {}
+
+        public WoodCountSync(int totalWood) {
+            this.totalWood = totalWood;
+        }
+    }
+
 }
