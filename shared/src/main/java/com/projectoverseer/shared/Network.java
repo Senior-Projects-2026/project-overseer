@@ -50,13 +50,6 @@ public class Network {
         kryo.register(PunchTree.class);
         kryo.register(TreeRemoved.class);
         kryo.register(WoodCountSync.class);
-        kryo.register(TreeHit.class);
-
-        kryo.register(PunchRock.class);
-        kryo.register(RockHit.class);
-        kryo.register(RockRemoved.class);
-        kryo.register(StoneCountSync.class);
-
 
     }
 
@@ -156,67 +149,6 @@ public class Network {
 
         public WoodCountSync(int totalWood) {
             this.totalWood = totalWood;
-        }
-    }
-    public static class TreeHit {
-        public int tileX;
-        public int tileY;
-        public int hitCount;
-
-        public TreeHit() {}
-
-        public TreeHit(int tileX, int tileY, int hitCount) {
-            this.tileX = tileX;
-            this.tileY = tileY;
-            this.hitCount = hitCount;
-        }
-    }
-
-    public static class PunchRock {
-        public int tileX;
-        public int tileY;
-
-        public PunchRock() {}
-
-        public PunchRock(int tileX, int tileY) {
-            this.tileX = tileX;
-            this.tileY = tileY;
-        }
-    }
-
-    public static class RockHit {
-        public int tileX;
-        public int tileY;
-        public int hitCount;
-
-        public RockHit() {}
-
-        public RockHit(int tileX, int tileY, int hitCount) {
-            this.tileX = tileX;
-            this.tileY = tileY;
-            this.hitCount = hitCount;
-        }
-    }
-
-    public static class RockRemoved {                                                                                                                                                       //🐐
-        public int tileX;
-        public int tileY;
-
-        public RockRemoved() {}
-
-        public RockRemoved(int tileX, int tileY) {
-            this.tileX = tileX;
-            this.tileY = tileY;
-        }
-    }
-
-    public static class StoneCountSync {
-        public int totalStone;
-
-        public StoneCountSync() {}
-
-        public StoneCountSync(int totalStone) {
-            this.totalStone = totalStone;
         }
     }
 

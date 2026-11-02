@@ -11,12 +11,7 @@ import com.projectoverseer.shared.Network.PositionUpdate;
 import com.projectoverseer.shared.Network.Welcome;
 import com.projectoverseer.shared.Network.TimeSync;
 import com.projectoverseer.shared.Network.GameEnd;
-import com.projectoverseer.shared.Network.TreeHit;
 
-import com.projectoverseer.shared.Network.PunchRock;
-import com.projectoverseer.shared.Network.RockHit;
-import com.projectoverseer.shared.Network.RockRemoved;
-import com.projectoverseer.shared.Network.StoneCountSync;
 import com.projectoverseer.shared.Network.PunchTree;
 import com.projectoverseer.shared.Network.TreeRemoved;
 import com.projectoverseer.shared.Network.WoodCountSync;
@@ -36,8 +31,6 @@ import com.projectoverseer.shared.world.generation.WorldGenerator;
 /** Launches the server application. */
 public class ServerLauncher {
     private static List<Chunk> worldChunks;
-    private static WorldGenerator worldGenerator;
-
     // Server configuration
     private static int serverSleepTime = 50;
     private static float serverSyncInterval = 1f;
@@ -54,6 +47,8 @@ public class ServerLauncher {
     private static float syncTimer = 0f;
     private static long lastTime;
 
+    //Game logics, if u ask denis... it would be nice a config file, ngl, i don't like hardcoded shee in code
+    //same with asset paths, what if i change the name of tree.png to oak.png? search the whole project for tree.png references
     private static final int TREE_HITS_REQUIRED = 6;
     private static final float TILE_SIZE = 32f;
     private static final float PUNCH_RANGE = 64f;
@@ -65,8 +60,8 @@ public class ServerLauncher {
 
     public static void main(String[] args) throws IOException {
         long worldSeed = Long.parseLong(Network.CONFIG.getProperty("world.seed", "123"));
-        worldGenerator = new WorldGenerator(worldSeed);
-        worldChunks = new ArrayList<>(worldGenerator.generateInitialChunks());
+        WorldGenerator generator = new WorldGenerator(worldSeed);
+        worldChunks = generator.generateInitialChunks();
         System.out.println("SERVER: World seed " + worldSeed + ", generator version "
             + WorldGenerator.VERSION + ", chunks " + worldChunks.size());
         Server server = new Server();
@@ -79,12 +74,6 @@ public class ServerLauncher {
         Map<Integer, Integer> playerWood = new HashMap<>();
         Map<Integer, Long> lastPunchTime = new HashMap<>();
         List<TreeRemoved> destroyedTrees = new ArrayList<>();
-
-
-        Map<Long, Integer> rockHits = new HashMap<>();
-        Map<Integer, Integer> playerStone = new HashMap<>();
-        List<RockRemoved> destroyedRocks = new ArrayList<>();
-
 
 
         server.addListener(new Listener() {
@@ -114,14 +103,6 @@ public class ServerLauncher {
                 WoodCountSync woodSync = new WoodCountSync();
                 woodSync.totalWood = 0;
                 connection.sendTCP(woodSync);
-
-                for (RockRemoved removed : destroyedRocks) {
-                    connection.sendTCP(removed);
-                }
-                StoneCountSync stoneSync = new StoneCountSync();
-                stoneSync.totalStone = 0;
-                connection.sendTCP(stoneSync);
-
             }
 
             @Override
@@ -172,25 +153,14 @@ public class ServerLauncher {
                         return;
                     }
                     int wood = playerWood.getOrDefault(playerId, 0);
-
-                    int stone = playerStone.getOrDefault(playerId, 0);
-
-                    if (!hasInventorySpace(wood + 1, stone)) {
+                    if (wood >= MAX_WOOD) {
                         return;
                     }
-
                     lastPunchTime.put(playerId, now);
                     long treeId =
                         ((long) punch.tileX << 32)
                             | (punch.tileY & 0xFFFFFFFFL);
                     int hits = treeHits.getOrDefault(treeId, 0) + 1;
-                    TreeHit hitMessage = new TreeHit(
-                        punch.tileX,
-                        punch.tileY,
-                        hits
-                    );
-
-                    server.sendToAllTCP(hitMessage);
                     if (hits < TREE_HITS_REQUIRED) {
                         treeHits.put(treeId, hits);
                         System.out.println(
@@ -217,108 +187,6 @@ public class ServerLauncher {
                             + punch.tileX + ", " + punch.tileY
                     );
                 }
-
-                else if (object instanceof PunchRock punch) {
-
-                    int playerId = connection.getID();
-
-                    PlayerPosition playerPosition = players.get(playerId);
-
-                    if (playerPosition == null) {
-                        return;
-                    }
-
-                    Chunk chunk = findChunk(punch.tileX, punch.tileY);
-
-                    if (chunk == null) {
-                        return;
-                    }
-
-                    int localX = Chunk.localCoordinate(punch.tileX);
-                    int localY = Chunk.localCoordinate(punch.tileY);
-
-                    WorldResource resource =
-                        chunk.getResource(localX, localY);
-
-                    if (resource == null
-                        || resource.type() != ResourceType.ROCK) {
-                        return;
-                    }
-
-                    float rockX = (punch.tileX + 0.5f) * TILE_SIZE;
-                    float rockY = (punch.tileY + 0.5f) * TILE_SIZE;
-
-                    float dx = playerPosition.x + 16f - rockX;
-                    float dy = playerPosition.y + 16f - rockY;
-
-                    if (dx * dx + dy * dy
-                        > PUNCH_RANGE * PUNCH_RANGE) {
-                        return;
-                    }
-
-                    long now = System.nanoTime();
-
-                    Long lastPunch = lastPunchTime.get(playerId);
-
-                    if (lastPunch != null
-                        && now - lastPunch < PUNCH_COOLDOWN_NS) {
-                        return;
-                    }
-
-                    int wood = playerWood.getOrDefault(playerId, 0);
-                    int stone = playerStone.getOrDefault(playerId, 0);
-
-                    if (!hasInventorySpace(wood, stone + 1)) {
-                        return;
-                    }
-
-                    lastPunchTime.put(playerId, now);
-                    long rockId =
-                        ((long) punch.tileX << 32)
-                            | (punch.tileY & 0xFFFFFFFFL);
-
-                    int hits = rockHits.getOrDefault(rockId, 0) + 1;
-                    RockHit hitMessage = new RockHit(
-                        punch.tileX,
-                        punch.tileY,
-                        hits
-                    );
-
-                    server.sendToAllTCP(hitMessage);
-                    if (hits < TREE_HITS_REQUIRED) {
-                        rockHits.put(rockId, hits);
-
-                        System.out.println(
-                            "SERVER: Rock hit " + hits + "/3"
-                        );
-                        return;
-                    }
-
-                    rockHits.remove(rockId);
-                    chunk.removeResource(localX, localY);
-
-                    stone++;
-                    playerStone.put(playerId, stone);
-
-                    StoneCountSync stoneSync = new StoneCountSync();
-                    stoneSync.totalStone = stone;
-
-                    connection.sendTCP(stoneSync);
-
-                    RockRemoved removed = new RockRemoved();
-                    removed.tileX = punch.tileX;
-                    removed.tileY = punch.tileY;
-
-                    destroyedRocks.add(removed);
-                    server.sendToAllTCP(removed);
-
-                    System.out.println(
-                        "SERVER: Player " + playerId
-                            + " destroyed rock at "
-                            + punch.tileX + ", " + punch.tileY
-                    );
-                }
-
             }
 
             @Override
@@ -342,8 +210,6 @@ public class ServerLauncher {
 
                 playerWood.remove(connection.getID());
                 lastPunchTime.remove(connection.getID());
-
-                playerStone.remove(connection.getID());
 
                 System.out.println("SERVER: Player " + connection.getID() + " disconnected.");
             }
@@ -369,16 +235,6 @@ public class ServerLauncher {
                 break;
             }
         }
-    }
-
-    private static boolean hasInventorySpace(
-        int wood,
-        int stone
-    ) {
-        int woodSlots = (wood + 63) / 64;
-        int stoneSlots = (stone + 63) / 64;
-
-        return woodSlots + stoneSlots <= 9;
     }
 
     public static void update(float delta, Server server) {
@@ -424,10 +280,7 @@ public class ServerLauncher {
             }
         }
 
-        Chunk newChunk = worldGenerator.generateChunk(chunkX, chunkY);
-        worldChunks.add(newChunk);
-
-        return newChunk;
+        return null;
     }
 
 }
