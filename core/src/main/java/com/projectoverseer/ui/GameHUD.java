@@ -44,10 +44,6 @@ public final class GameHUD implements Disposable {
     private Texture woodTexture;
     private Drawable woodDrawable;
 
-    private Texture stoneTexture;
-    private Drawable stoneDrawable;
-
-
     private static final int[] NUMBER_KEYS = {
         Input.Keys.NUM_1, Input.Keys.NUM_2, Input.Keys.NUM_3,
         Input.Keys.NUM_4, Input.Keys.NUM_5, Input.Keys.NUM_6,
@@ -135,20 +131,6 @@ public final class GameHUD implements Disposable {
         woodDrawable = new TextureRegionDrawable(
             new TextureRegion(woodTexture)
         );
-
-        stoneTexture = new Texture(
-            Gdx.files.internal("ui/items/stone.png")
-        );
-
-        stoneTexture.setFilter(
-            Texture.TextureFilter.Nearest,
-            Texture.TextureFilter.Nearest
-        );
-
-        stoneDrawable = new TextureRegionDrawable(
-            new TextureRegion(stoneTexture)
-        );
-
 
         normalSlotTexture = createSlotTexture(false);
         selectedSlotTexture = createSlotTexture(true);
@@ -388,21 +370,11 @@ public final class GameHUD implements Disposable {
                     continue;
                 }
 
-
                 if ("wood".equals(item.itemId())) {
-
                     itemImages[i].setDrawable(woodDrawable);
                     itemImages[i].setVisible(true);
                     itemLabels[i].setText("");
-
-                } else if ("stone".equals(item.itemId())) {
-
-                    itemImages[i].setDrawable(stoneDrawable);
-                    itemImages[i].setVisible(true);
-                    itemLabels[i].setText("");
-
                 } else {
-
                     itemImages[i].setDrawable(null);
                     itemImages[i].setVisible(false);
 
@@ -413,7 +385,6 @@ public final class GameHUD implements Disposable {
                             : name
                     );
                 }
-
 
                 quantityLabels[i].setText(
                     item.quantity() > 1
@@ -484,11 +455,6 @@ public final class GameHUD implements Disposable {
         if (woodTexture != null) {
             woodTexture.dispose();
         }
-
-        if (stoneTexture != null) {
-            stoneTexture.dispose();
-        }
-
     }
 
 }

@@ -11,8 +11,6 @@ import com.projectoverseer.entities.Player;
 import com.projectoverseer.shared.world.Chunk;
 import com.projectoverseer.shared.world.ResourceType;
 import com.projectoverseer.shared.world.WorldResource;
-
-
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -65,14 +63,13 @@ public final class WorldObjectRenderer implements Disposable {
                 TextureRegion region = resource.type() == ResourceType.TREE ? tree
                     : rocks[ResourceAppearance.rockVariant(resource.tileX(), resource.tileY())];
 
-
                 float drawX = placement.x();
-
-                drawX += getResourceShakeX(
-                    resource.tileX(),
-                    resource.tileY()
-                );
-
+                if (resource.type() == ResourceType.TREE) {
+                    drawX += getTreeShakeX(
+                        resource.tileX(),
+                        resource.tileY()
+                    );
+                }
                 entries.add(new DrawEntry(
                     placement.groundY(),
                     drawX,
@@ -109,53 +106,40 @@ public final class WorldObjectRenderer implements Disposable {
         entries.add(new DrawEntry(player.getY(), player.getX(), null, null, player));
     }
 
-
-    public WorldResource findResourceAt(
+    public WorldResource findTreeAt(
         Iterable<Chunk> chunks,
         float worldX,
         float worldY
     ) {
         WorldResource selected = null;
         float selectedGroundY = Float.POSITIVE_INFINITY;
-        float selectedX = Float.NEGATIVE_INFINITY;
-
         for (Chunk chunk : chunks) {
             for (WorldResource resource : chunk.getResources()) {
-
+                if (resource.type() != ResourceType.TREE) {
+                    continue;
+                }
                 ResourceAppearance.Placement placement =
                     ResourceAppearance.placement(resource);
-
                 boolean inside =
                     worldX >= placement.x()
                         && worldX <= placement.x() + placement.width()
                         && worldY >= placement.y()
                         && worldY <= placement.y() + placement.height();
-
-                if (!inside) {
-                    continue;
-                }
-
-                // Alegem obiectul desenat deasupra celorlalte
-                if (placement.groundY() < selectedGroundY
-                    || (placement.groundY() == selectedGroundY
-                    && placement.x() > selectedX)) {
-
+                if (inside
+                    && placement.groundY() < selectedGroundY) {
                     selected = resource;
                     selectedGroundY = placement.groundY();
-                    selectedX = placement.x();
                 }
             }
         }
-
         return selected;
     }
-
     private static long treeKey(int tileX, int tileY) {
         return ((long) tileX << 32)
             | (tileY & 0xFFFFFFFFL);
     }
 
-    private float getResourceShakeX(int tileX, int tileY) {
+    private float getTreeShakeX(int tileX, int tileY) {
         long key = treeKey(tileX, tileY);
         Long endTime = shakingTrees.get(key);
         if (endTime == null) {
@@ -172,7 +156,7 @@ public final class WorldObjectRenderer implements Disposable {
             : TREE_SHAKE_OFFSET;
     }
 
-    public void triggerResourceShake(int tileX, int tileY) {
+    public void triggerTreeShake(int tileX, int tileY) {
         long key = treeKey(tileX, tileY);
         long endTime = TimeUtils.nanoTime()
             + (long) (TREE_SHAKE_DURATION * 1_000_000_000L);

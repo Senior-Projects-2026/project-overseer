@@ -50,6 +50,7 @@ public class Network {
         kryo.register(PunchTree.class);
         kryo.register(TreeRemoved.class);
         kryo.register(WoodCountSync.class);
+        kryo.register(TreeHit.class);
 
     }
 
@@ -149,6 +150,19 @@ public class Network {
 
         public WoodCountSync(int totalWood) {
             this.totalWood = totalWood;
+        }
+    }
+    public static class TreeHit {
+        public int tileX;
+        public int tileY;
+        public int hitCount;
+
+        public TreeHit() {}
+
+        public TreeHit(int tileX, int tileY, int hitCount) {
+            this.tileX = tileX;
+            this.tileY = tileY;
+            this.hitCount = hitCount;
         }
     }
 

@@ -1,37 +1,51 @@
 package com.projectoverseer;
 
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import com.badlogic.gdx.ApplicationAdapter;
 import com.badlogic.gdx.Gdx;
-import com.badlogic.gdx.Input;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
-import com.badlogic.gdx.math.Vector2;
-import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.utils.ScreenUtils;
 import com.badlogic.gdx.utils.Timer;
 import com.badlogic.gdx.utils.viewport.FitViewport;
+import com.badlogic.gdx.Input;
+import com.badlogic.gdx.math.Vector2;
+import com.badlogic.gdx.math.Vector3;
+
 import com.esotericsoftware.kryonet.Client;
 import com.esotericsoftware.kryonet.Connection;
 import com.esotericsoftware.kryonet.Listener;
+
 import com.projectoverseer.entities.Player;
 import com.projectoverseer.environment.DayNightRenderer;
-import com.projectoverseer.gameplay.Inventory;
-import com.projectoverseer.gameplay.ItemStack;
 import com.projectoverseer.shared.Network;
-import com.projectoverseer.shared.Network.*;
+import com.projectoverseer.shared.Network.GameEnd;
+import com.projectoverseer.shared.Network.Ping;
+import com.projectoverseer.shared.Network.PlayerLeft;
+import com.projectoverseer.shared.Network.PlayerPosition;
+import com.projectoverseer.shared.Network.PositionUpdate;
+import com.projectoverseer.shared.Network.TimeSync;
+import com.projectoverseer.shared.Network.Welcome;
 import com.projectoverseer.shared.world.Chunk;
 import com.projectoverseer.shared.world.ChunkManager;
-import com.projectoverseer.shared.world.ResourceType;
-import com.projectoverseer.shared.world.WorldResource;
 import com.projectoverseer.shared.world.generation.WorldGenerator;
 import com.projectoverseer.ui.GameHUD;
 import com.projectoverseer.ui.MainMenu;
 import com.projectoverseer.world.TileRenderer;
 import com.projectoverseer.world.WorldObjectRenderer;
-
-import java.io.IOException;
-import java.util.*;
+import com.projectoverseer.shared.Network.PunchTree;
+import com.projectoverseer.shared.Network.TreeRemoved;
+import com.projectoverseer.shared.Network.WoodCountSync;
+import com.projectoverseer.shared.world.WorldResource;
+import com.projectoverseer.shared.world.ResourceType;
+import com.projectoverseer.gameplay.Inventory;
+import com.projectoverseer.gameplay.ItemStack;
+import com.projectoverseer.shared.Network.TreeHit;
 
 /** {@link com.badlogic.gdx.ApplicationListener} implementation shared by all platforms. */
 public class Main extends ApplicationAdapter {
@@ -74,8 +88,6 @@ public class Main extends ApplicationAdapter {
     private Timer.Task welcomeTimeout;
     private String connectionError;
 
-    private final Set<Long> destroyedResources = new HashSet<>();
-
 
     @Override
     public void create() {
@@ -96,11 +108,6 @@ public class Main extends ApplicationAdapter {
 
         menu = new MainMenu(this::connectToServer);
         menu.show("Choose Play to connect to the server.");
-    }
-
-    private static long resourceKey(int tileX, int tileY) {
-        return ((long) tileX << 32)
-            | (tileY & 0xFFFFFFFFL);
     }
 
     private void createClient() {
@@ -162,40 +169,12 @@ public class Main extends ApplicationAdapter {
                 else if (object instanceof TreeHit hit) {
 
                     Gdx.app.postRunnable(() -> {
-                        worldObjectRenderer.triggerResourceShake(
+                        worldObjectRenderer.triggerTreeShake(
                             hit.tileX,
                             hit.tileY
                         );
                     });
                 }
-
-                else if (object instanceof RockHit hit) {
-
-                    Gdx.app.postRunnable(() -> {
-                        worldObjectRenderer.triggerResourceShake(
-                            hit.tileX,
-                            hit.tileY
-                        );
-                    });
-
-                } else if (object instanceof RockRemoved removed) {
-
-                    Gdx.app.postRunnable(() -> {
-                        removeRockFromWorld(
-                            removed.tileX,
-                            removed.tileY
-                        );
-                    });
-
-                } else if (object instanceof StoneCountSync sync) {
-
-                    int totalStone = sync.totalStone;
-
-                    Gdx.app.postRunnable(() -> {
-                        updateStoneInventory(totalStone);
-                    });
-                }
-
             }
 
             @Override
@@ -227,7 +206,7 @@ public class Main extends ApplicationAdapter {
         if (gameState == GameState.CONNECTING || isConnected) {
             return;
         }
-        destroyedResources.clear();
+
         gameState = GameState.CONNECTING;
         connectionError = null;
         chunks = List.of();
@@ -300,77 +279,49 @@ public class Main extends ApplicationAdapter {
     }
 
 
-
-    private void handleResourcePunch() {
-
-        if (gameState != GameState.PLAYING
-            || !isConnected
+    private void handleTreePunch() {
+        if (!isConnected
             || !Gdx.input.isButtonJustPressed(Input.Buttons.LEFT)) {
             return;
         }
-
         int screenX = Gdx.input.getX();
         int screenY = Gdx.input.getY();
-
         int bottomY = Gdx.graphics.getHeight() - 1 - screenY;
-
         if (screenX < viewport.getScreenX()
             || screenX >= viewport.getScreenX() + viewport.getScreenWidth()
             || bottomY < viewport.getScreenY()
             || bottomY >= viewport.getScreenY() + viewport.getScreenHeight()) {
             return;
         }
-
         Vector2 hudPoint = new Vector2(screenX, screenY);
         hud.getStage().screenToStageCoordinates(hudPoint);
-
         if (hudPoint.y >= 0 && hudPoint.y < 85f) {
             return;
         }
-
         Vector3 mouseWorld = new Vector3(screenX, screenY, 0);
         viewport.unproject(mouseWorld);
-
-        WorldResource resource =
-            worldObjectRenderer.findResourceAt(
-                chunks,
-                mouseWorld.x,
-                mouseWorld.y
-            );
-
-        if (resource == null) {
+        WorldResource tree = worldObjectRenderer.findTreeAt(
+            chunks,
+            mouseWorld.x,
+            mouseWorld.y
+        );
+        if (tree == null) {
             return;
         }
-
         float playerX = player.getX() + 16f;
         float playerY = player.getY() + 16f;
-
-        float resourceX = (resource.tileX() + 0.5f) * 32f;
-        float resourceY = (resource.tileY() + 0.5f) * 32f;
-
-        float dx = playerX - resourceX;
-        float dy = playerY - resourceY;
-
+        float treeX = (tree.tileX() + 0.5f) * 32f;
+        float treeY = (tree.tileY() + 0.5f) * 32f;
+        float dx = playerX - treeX;
+        float dy = playerY - treeY;
         if (dx * dx + dy * dy > 64f * 64f) {
             return;
         }
-
-        if (resource.type() == ResourceType.TREE) {
-
-            client.sendTCP(new PunchTree(
-                resource.tileX(),
-                resource.tileY()
-            ));
-
-        } else if (resource.type() == ResourceType.ROCK) {
-
-            client.sendTCP(new PunchRock(
-                resource.tileX(),
-                resource.tileY()
-            ));
-        }
+        client.sendTCP(new PunchTree(
+            tree.tileX(),
+            tree.tileY()
+        ));
     }
-
 
     @Override
     public void render() {
@@ -426,7 +377,7 @@ public class Main extends ApplicationAdapter {
         camera.position.y = Math.round(camera.position.y);
 
         camera.update();
-        handleResourcePunch();
+        handleTreePunch();
 
         // Making the entire screen black for black screen borders
         Gdx.gl.glClearColor(0, 0, 0, 1);
@@ -486,7 +437,6 @@ public class Main extends ApplicationAdapter {
                 && resource.type() == ResourceType.TREE) {
                 chunk.removeResource(localX, localY);
             }
-            destroyedResources.add(resourceKey(tileX, tileY));
             return;
         }
     }
@@ -510,62 +460,6 @@ public class Main extends ApplicationAdapter {
             }
         }
     }
-
-
-    private void removeRockFromWorld(int tileX, int tileY) {
-
-        int chunkX = Chunk.chunkCoordinate(tileX);
-        int chunkY = Chunk.chunkCoordinate(tileY);
-
-        for (Chunk chunk : chunks) {
-
-            if (chunk.getChunkX() != chunkX
-                || chunk.getChunkY() != chunkY) {
-                continue;
-            }
-
-            int localX = Chunk.localCoordinate(tileX);
-            int localY = Chunk.localCoordinate(tileY);
-
-            WorldResource resource =
-                chunk.getResource(localX, localY);
-
-            if (resource != null
-                && resource.type() == ResourceType.ROCK) {
-
-                chunk.removeResource(localX, localY);
-            }
-            destroyedResources.add(resourceKey(tileX, tileY));
-            return;
-        }
-    }
-
-
-    private void updateStoneInventory(int totalStone) {
-
-        Inventory inventory = player.getInventory();
-
-        inventory.removeItem(
-            "stone",
-            Inventory.SLOT_COUNT * ItemStack.MAX_STACK_SIZE
-        );
-
-        if (totalStone > 0) {
-
-            int remaining = inventory.addItem(
-                "stone",
-                totalStone
-            );
-
-            if (remaining > 0) {
-                System.err.println(
-                    "CLIENT: Not enough space for "
-                        + remaining + " stone"
-                );
-            }
-        }
-    }
-
 
     @Override
     public void dispose() {
@@ -612,19 +506,6 @@ public class Main extends ApplicationAdapter {
         chunkManager.unloadOutside(chunkX, chunkY, CHUNK_UNLOAD_RADIUS);
 
         chunks = List.copyOf(chunkManager.getLoadedChunks());
-
-        for (Chunk chunk : chunks) {
-            for (WorldResource resource : List.copyOf(chunk.getResources())) {
-                if (destroyedResources.contains(
-                    resourceKey(resource.tileX(), resource.tileY())
-                )) {
-                    chunk.removeResource(
-                        Chunk.localCoordinate(resource.tileX()),
-                        Chunk.localCoordinate(resource.tileY())
-                    );
-                }
-            }
-        }
 
         lastChunkX = chunkX;
         lastChunkY = chunkY;
