@@ -1,5 +1,10 @@
 package com.projectoverseer;
 
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import com.badlogic.gdx.ApplicationAdapter;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
@@ -29,6 +34,14 @@ import com.projectoverseer.ui.GameHUD;
 import com.projectoverseer.ui.MainMenu;
 import com.projectoverseer.world.TileRenderer;
 import com.projectoverseer.world.WorldObjectRenderer;
+import com.projectoverseer.shared.Network.PunchTree;
+import com.projectoverseer.shared.Network.TreeRemoved;
+import com.projectoverseer.shared.Network.WoodCountSync;
+import com.projectoverseer.shared.world.WorldResource;
+import com.projectoverseer.shared.world.ResourceType;
+import com.projectoverseer.gameplay.Inventory;
+import com.projectoverseer.gameplay.ItemStack;
+import com.projectoverseer.shared.Network.TreeHit;
 
 import java.io.IOException;
 import java.util.*;
@@ -426,7 +439,6 @@ public class Main extends ApplicationAdapter {
         camera.position.y = Math.round(camera.position.y);
 
         camera.update();
-        handleResourcePunch();
 
         // Making the entire screen black for black screen borders
         Gdx.gl.glClearColor(0, 0, 0, 1);

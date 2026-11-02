@@ -28,6 +28,7 @@ import com.projectoverseer.gameplay.PlayerStats;
 
 public final class GameHUD implements Disposable {
 
+
     private static final int ICON_COUNT = 10;
     private static final int ICON_SIZE = 13;
 
@@ -191,6 +192,7 @@ public final class GameHUD implements Disposable {
 
             Table slot = new Table();
             slot.setBackground(normalSlot);
+            slot.top();
             slotTables[i] = slot;
 
             Label number = new Label(
@@ -259,10 +261,12 @@ public final class GameHUD implements Disposable {
             .row();
 
         content.add(hotbarRow);
+
         Table anchor = new Table();
         anchor.setFillParent(true);
         anchor.bottom();
         anchor.add(content).padBottom(30);
+
         stage.addActor(anchor);
 
         refresh();
