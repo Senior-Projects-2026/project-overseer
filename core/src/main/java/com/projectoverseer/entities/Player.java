@@ -8,6 +8,10 @@ import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.math.Vector2;
 
+import com.projectoverseer.gameplay.PlayerStats;
+import com.projectoverseer.gameplay.Inventory;
+
+
 public class Player {
     public static final int DOWN = 0;
     public static final int UP = 1;
@@ -17,6 +21,10 @@ public class Player {
     public static final int UP_RIGHT = 5;
     public static final int DOWN_LEFT = 6;
     public static final int DOWN_RIGHT = 7;
+
+
+    private final PlayerStats stats = new PlayerStats();
+    private final Inventory inventory = new Inventory();
 
     private float x = 400;
     private float y = 300;
@@ -57,6 +65,15 @@ public class Player {
         walkDownRight = new Animation<>(0.1f, frames[9]);
 
         currentAnimation = walkDown;
+    }
+
+
+    public PlayerStats getStats() {
+        return stats;
+    }
+
+    public Inventory getInventory() {
+        return inventory;
     }
 
     public void update() {

@@ -15,6 +15,7 @@ import com.projectoverseer.entities.Player;
 import com.projectoverseer.environment.DayNightRenderer;
 import com.projectoverseer.shared.Network;
 import com.projectoverseer.shared.Network.Ping;
+import com.projectoverseer.ui.GameHUD;
 import com.projectoverseer.shared.Network.TimeSync;
 import com.projectoverseer.shared.Network.GameEnd;
 import com.projectoverseer.shared.Network.PlayerLeft;
@@ -57,6 +58,8 @@ public class Main extends ApplicationAdapter {
     private TileRenderer tileRenderer;
     private List<Chunk> chunks;
 
+    private GameHUD hud;
+
     private volatile boolean isConnected;
     private volatile int playerId = -1;
     private float positionUpdateTimer;
@@ -71,6 +74,12 @@ public class Main extends ApplicationAdapter {
         dayNightRenderer = new DayNightRenderer();
 
         createClient();
+
+        hud = new GameHUD(
+            player.getStats(),
+            player.getInventory()
+        );
+
         menu = new MainMenu(this::connectToServer);
         menu.show("Choose Play to connect to the server.");
     }
@@ -164,6 +173,10 @@ public class Main extends ApplicationAdapter {
                 isConnected = true;
                 positionUpdateTimer = 0f;
                 Gdx.app.postRunnable(() -> gameState = GameState.PLAYING);
+                Gdx.app.postRunnable(() -> {
+                    gameState = GameState.PLAYING;
+                    Gdx.input.setInputProcessor(hud.getStage());
+                });
             } catch (IOException e) {
                 System.err.println("CLIENT: Could not connect to server!");
                 e.printStackTrace();
@@ -255,6 +268,9 @@ public class Main extends ApplicationAdapter {
         player.render(batch);
         for (Player other : otherPlayers.values()) other.render(batch);
         batch.end();
+
+        hud.render(Gdx.graphics.getDeltaTime());
+
         dayNightRenderer.render(camera, batch, currentDay, isNight);
     }
 
@@ -265,6 +281,11 @@ public class Main extends ApplicationAdapter {
         }
 
         viewport.update(width, height, false);
+
+        if (hud != null) {
+            hud.resize(width, height);
+        }
+
     }
 
     @Override
@@ -283,5 +304,10 @@ public class Main extends ApplicationAdapter {
     private void disposeOtherPlayers() {
         for (Player other : otherPlayers.values()) other.dispose();
         otherPlayers.clear();
+
+        if (hud != null) {
+            hud.dispose();
+        }
+
     }
 }
