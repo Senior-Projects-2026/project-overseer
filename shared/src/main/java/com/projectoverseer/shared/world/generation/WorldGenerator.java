@@ -4,6 +4,8 @@ import com.projectoverseer.shared.world.Chunk;
 import com.projectoverseer.shared.world.ResourceType;
 import com.projectoverseer.shared.world.TileType;
 import com.projectoverseer.shared.world.WorldResource;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Shared, deterministic baseline generation. Same seed, coordinates and generator
@@ -29,6 +31,25 @@ public final class WorldGenerator {
 
     public long getSeed() {
         return seed;
+    }
+
+    /** Fixed starting region until dynamic chunk loading is implemented in #30. */
+    public List<Chunk> generateInitialChunks() {
+        List<Chunk> chunks = new ArrayList<>();
+        for (int y = -1; y <= 1; y++) {
+            for (int x = -1; x <= 1; x++) {
+                chunks.add(generateChunk(x, y));
+            }
+        }
+        return List.copyOf(chunks);
+    }
+
+    /** Refuse incompatible generation rules rather than silently creating a different map. */
+    public static WorldGenerator fromServer(long seed, int version) {
+        if (version != VERSION) {
+            throw new IllegalArgumentException("Unsupported world generator version: " + version);
+        }
+        return new WorldGenerator(seed);
     }
 
     public Chunk generateChunk(int chunkX, int chunkY) {

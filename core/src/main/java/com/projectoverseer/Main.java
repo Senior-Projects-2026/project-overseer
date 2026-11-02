@@ -24,7 +24,7 @@ import com.projectoverseer.shared.Network.PositionUpdate;
 import com.projectoverseer.shared.Network.Welcome;
 import com.projectoverseer.ui.MainMenu;
 import com.projectoverseer.shared.world.Chunk;
-import com.projectoverseer.world.DemoWorld;
+import com.projectoverseer.shared.world.generation.WorldGenerator;
 import com.projectoverseer.world.TileRenderer;
 
 import java.io.IOException;
@@ -63,6 +63,8 @@ public class Main extends ApplicationAdapter {
     private volatile boolean isConnected;
     private volatile int playerId = -1;
     private float positionUpdateTimer;
+    private Timer.Task welcomeTimeout;
+    private String connectionError;
 
     @Override
     public void create() {
@@ -70,7 +72,7 @@ public class Main extends ApplicationAdapter {
         camera = new OrthographicCamera();
         viewport = new FitViewport(640, 360, camera);
         tileRenderer = new TileRenderer();
-        chunks = DemoWorld.createChunks();
+        chunks = List.of();
         dayNightRenderer = new DayNightRenderer();
 
         createClient();
@@ -98,8 +100,9 @@ public class Main extends ApplicationAdapter {
                     Ping ping = (Ping) object;
                     System.out.println("CLIENT: Received from server -> " + ping.message);
                 } else if (object instanceof Welcome) {
-                    playerId = ((Welcome) object).playerId;
-                    System.out.println("CLIENT: Assigned player ID " + playerId);
+                    Welcome welcome = (Welcome) object;
+                    // Keep GL-facing state and the generated map on the render thread.
+                    Gdx.app.postRunnable(() -> acceptWelcome(connection, welcome));
                 } else if (object instanceof PlayerPosition) {
                     PlayerPosition position = (PlayerPosition) object;
                     if (position.playerId != playerId) {
@@ -146,7 +149,8 @@ public class Main extends ApplicationAdapter {
                             }
                         }, 10f);
                     } else {
-                        showMenu("Connection lost. Choose Play to reconnect.");
+                        showMenu(connectionError != null ? connectionError
+                            : "Connection lost. Choose Play to reconnect.");
                     }
                 });
             }
@@ -159,8 +163,20 @@ public class Main extends ApplicationAdapter {
         }
 
         gameState = GameState.CONNECTING;
+        connectionError = null;
+        chunks = List.of();
         menu.show("Connecting to " + Network.SERVER_HOST + "...");
-        menu.hide();
+        // Keep connection status visible until Welcome has supplied the world seed.
+        welcomeTimeout = Timer.schedule(new Timer.Task() {
+            @Override
+            public void run() {
+                if (gameState == GameState.CONNECTING) {
+                    connectionError = "Timed out waiting for world data. Please reconnect.";
+                    client.close();
+                    showMenu(connectionError);
+                }
+            }
+        }, 10f);
 
         new Thread(() -> {
             try {
@@ -170,13 +186,7 @@ public class Main extends ApplicationAdapter {
                 myPing.message = "Hello Server, I am a new client!";
                 client.sendTCP(myPing);
 
-                isConnected = true;
-                positionUpdateTimer = 0f;
-                Gdx.app.postRunnable(() -> gameState = GameState.PLAYING);
-                Gdx.app.postRunnable(() -> {
-                    gameState = GameState.PLAYING;
-                    Gdx.input.setInputProcessor(hud.getStage());
-                });
+                // PLAYING begins only when acceptWelcome has generated the map.
             } catch (IOException e) {
                 System.err.println("CLIENT: Could not connect to server!");
                 e.printStackTrace();
@@ -186,9 +196,32 @@ public class Main extends ApplicationAdapter {
     }
 
     private void showMenu(String status) {
+        if (welcomeTimeout != null) welcomeTimeout.cancel();
         isConnected = false;
         gameState = GameState.MENU;
         menu.show(status);
+    }
+
+    private void acceptWelcome(Connection connection, Welcome welcome) {
+        if (gameState != GameState.CONNECTING || !connection.isConnected()) return;
+        try {
+            WorldGenerator generator = WorldGenerator.fromServer(welcome.worldSeed, welcome.generatorVersion);
+            chunks = generator.generateInitialChunks();
+        } catch (IllegalArgumentException e) {
+            connectionError = "World generator version mismatch. Update client and server.";
+            client.close();
+            showMenu(connectionError);
+            return;
+        }
+        if (welcomeTimeout != null) welcomeTimeout.cancel();
+        playerId = welcome.playerId;
+        isConnected = true;
+        positionUpdateTimer = 0f;
+        menu.hide();
+        gameState = GameState.PLAYING;
+        Gdx.input.setInputProcessor(hud.getStage());
+        System.out.println("CLIENT: World seed " + welcome.worldSeed + ", generator version "
+            + welcome.generatorVersion + ", chunks " + chunks.size());
     }
 
     @Override
@@ -290,6 +323,7 @@ public class Main extends ApplicationAdapter {
 
     @Override
     public void dispose() {
+        if (welcomeTimeout != null) welcomeTimeout.cancel();
         if (client != null) {
             client.stop();
         }
@@ -299,15 +333,12 @@ public class Main extends ApplicationAdapter {
         disposeOtherPlayers();
         if (tileRenderer != null) tileRenderer.dispose();
         if (dayNightRenderer != null) dayNightRenderer.dispose();
+        if (hud != null) hud.dispose();
     }
 
     private void disposeOtherPlayers() {
         for (Player other : otherPlayers.values()) other.dispose();
         otherPlayers.clear();
-
-        if (hud != null) {
-            hud.dispose();
-        }
 
     }
 }
