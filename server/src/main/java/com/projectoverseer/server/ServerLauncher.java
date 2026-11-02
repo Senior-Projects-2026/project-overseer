@@ -11,6 +11,7 @@ import com.projectoverseer.shared.Network.PositionUpdate;
 import com.projectoverseer.shared.Network.Welcome;
 import com.projectoverseer.shared.Network.TimeSync;
 import com.projectoverseer.shared.Network.GameEnd;
+import com.projectoverseer.shared.Network.TreeHit;
 
 import com.projectoverseer.shared.Network.PunchTree;
 import com.projectoverseer.shared.Network.TreeRemoved;
@@ -161,6 +162,13 @@ public class ServerLauncher {
                         ((long) punch.tileX << 32)
                             | (punch.tileY & 0xFFFFFFFFL);
                     int hits = treeHits.getOrDefault(treeId, 0) + 1;
+                    TreeHit hitMessage = new TreeHit(
+                        punch.tileX,
+                        punch.tileY,
+                        hits
+                    );
+
+                    server.sendToAllTCP(hitMessage);
                     if (hits < TREE_HITS_REQUIRED) {
                         treeHits.put(treeId, hits);
                         System.out.println(
@@ -258,13 +266,13 @@ public class ServerLauncher {
             syncPacket.isNight = isNight;
             server.sendToAllTCP(syncPacket);
 
-            if (day > winThreshold) {
-                GameEnd endPacket = new GameEnd();
-                endPacket.isVictory = true;
-                server.sendToAllTCP(endPacket);
-                System.out.println("SERVER: " + winThreshold + " days survived. Victory packet sent!");
-                System.exit(0); // Close server when win is reached
-            }
+//            if (day > winThreshold) {
+//                GameEnd endPacket = new GameEnd();
+//                endPacket.isVictory = true;
+//                server.sendToAllTCP(endPacket);
+//                System.out.println("SERVER: " + winThreshold + " days survived. Victory packet sent!");
+//                System.exit(0); // Close server when win is reached
+//            }
         }
     }
 
