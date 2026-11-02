@@ -114,6 +114,29 @@ public class WorldGeneratorTest {
     }
 
     @Test
+    public void resourcesHaveAnEmptyNeighborCellEvenAcrossChunkSeams() {
+        for (long seed : new long[]{123, 456, -42}) {
+            WorldGenerator generator = new WorldGenerator(seed);
+            int checked = 0;
+            for (int cy = -2; cy <= 2; cy++) {
+                for (int cx = -2; cx <= 2; cx++) {
+                    for (WorldResource resource : generator.generateChunk(cx, cy).getResources()) {
+                        checked++;
+                        for (int dy = -1; dy <= 1; dy++) {
+                            for (int dx = -1; dx <= 1; dx++) {
+                                if (dx == 0 && dy == 0) continue;
+                                assertNull("Adjacent resource at " + resource,
+                                    generator.resourceAt(resource.tileX() + dx, resource.tileY() + dy));
+                            }
+                        }
+                    }
+                }
+            }
+            assertTrue(checked > 0);
+        }
+    }
+
+    @Test
     public void noiseIsContinuousAcrossLatticeEdgesAndNotConstant() {
         PerlinNoise noise = new PerlinNoise(123);
         boolean nonzero = false;

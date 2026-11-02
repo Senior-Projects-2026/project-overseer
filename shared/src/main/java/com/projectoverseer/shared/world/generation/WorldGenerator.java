@@ -14,11 +14,12 @@ import java.util.List;
  * world state; regenerating a chunk restores its baseline, not its modified state.
  */
 public final class WorldGenerator {
-    public static final int VERSION = 1;
+    public static final int VERSION = 2;
     private static final double TERRAIN_SCALE = 48.0;
     private static final double WATER_LEVEL = -0.10;
     private static final long TREE_SALT = 0x32a5b7c9d1e3f607L;
     private static final long ROCK_SALT = 0x71e8c2b493a5d60fL;
+    private static final long SPACING_SALT = 0x483ac91ef207b65dL;
     private final long seed;
     private final PerlinNoise terrain;
     private final PerlinNoise detail;
@@ -82,6 +83,29 @@ public final class WorldGenerator {
     }
 
     private ResourceType resourceTypeAt(int x, int y, TileType terrainType) {
+        ResourceType candidate = candidateAt(x, y, terrainType);
+        if (candidate == null) return null;
+        long priority = SeedHash.at(seed ^ SPACING_SALT, x, y);
+        // Compare baseline candidates, never generated chunks: request order and
+        // chunk boundaries must not affect spacing (including diagonal neighbors).
+        for (int dy = -1; dy <= 1; dy++) {
+            for (int dx = -1; dx <= 1; dx++) {
+                if (dx == 0 && dy == 0) continue;
+                long nx = (long) x + dx, ny = (long) y + dy;
+                if (nx < Integer.MIN_VALUE || nx > Integer.MAX_VALUE
+                    || ny < Integer.MIN_VALUE || ny > Integer.MAX_VALUE) continue;
+                if (candidateAt((int) nx, (int) ny, terrainAt((int) nx, (int) ny)) == null) continue;
+                long neighborPriority = SeedHash.at(seed ^ SPACING_SALT, nx, ny);
+                int comparison = Long.compareUnsigned(neighborPriority, priority);
+                if (comparison < 0 || (comparison == 0 && (ny < y || (ny == y && nx < x)))) {
+                    return null;
+                }
+            }
+        }
+        return candidate;
+    }
+
+    private ResourceType candidateAt(int x, int y, TileType terrainType) {
         if (!terrainType.isWalkable()) return null;
         if (SeedHash.unit(seed ^ TREE_SALT, x, y) < 0.08) return ResourceType.TREE;
         if (SeedHash.unit(seed ^ ROCK_SALT, x, y) < 0.035) return ResourceType.ROCK;

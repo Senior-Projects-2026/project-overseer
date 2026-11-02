@@ -26,6 +26,7 @@ import com.projectoverseer.ui.MainMenu;
 import com.projectoverseer.shared.world.Chunk;
 import com.projectoverseer.shared.world.generation.WorldGenerator;
 import com.projectoverseer.world.TileRenderer;
+import com.projectoverseer.world.WorldObjectRenderer;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -56,6 +57,7 @@ public class Main extends ApplicationAdapter {
     private Player player;
     private final Map<Integer, Player> otherPlayers = new HashMap<>();
     private TileRenderer tileRenderer;
+    private WorldObjectRenderer worldObjectRenderer;
     private List<Chunk> chunks;
 
     private GameHUD hud;
@@ -72,6 +74,7 @@ public class Main extends ApplicationAdapter {
         camera = new OrthographicCamera();
         viewport = new FitViewport(640, 360, camera);
         tileRenderer = new TileRenderer();
+        worldObjectRenderer = new WorldObjectRenderer();
         chunks = List.of();
         dayNightRenderer = new DayNightRenderer();
 
@@ -298,8 +301,7 @@ public class Main extends ApplicationAdapter {
         batch.setProjectionMatrix(camera.combined);
         batch.begin();
         tileRenderer.render(batch, chunks, camera);
-        player.render(batch);
-        for (Player other : otherPlayers.values()) other.render(batch);
+        worldObjectRenderer.render(batch, chunks, camera, player, otherPlayers.values());
         batch.end();
 
         hud.render(Gdx.graphics.getDeltaTime());
@@ -332,6 +334,7 @@ public class Main extends ApplicationAdapter {
         if (player != null) player.dispose();
         disposeOtherPlayers();
         if (tileRenderer != null) tileRenderer.dispose();
+        if (worldObjectRenderer != null) worldObjectRenderer.dispose();
         if (dayNightRenderer != null) dayNightRenderer.dispose();
         if (hud != null) hud.dispose();
     }
