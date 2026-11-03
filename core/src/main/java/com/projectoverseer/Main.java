@@ -221,6 +221,7 @@ public class Main extends ApplicationAdapter {
                 welcome.generatorVersion
             );
 
+            // Creat ChunkManager using world seed and gen vers + force initial chunk update
             chunkManager = new ChunkManager(generator);
             lastChunkX = Integer.MIN_VALUE;
             lastChunkY = Integer.MIN_VALUE;
@@ -362,18 +363,26 @@ public class Main extends ApplicationAdapter {
 
     }
 
+    /**
+     * Updates the loaded chunks based on the player's current position.
+     * Loads nearby chunks and unloads chunks that are too far away.
+     */
     private void updateLoadedChunks() {
         if (chunkManager == null) return;
 
+        // Convert the player's world position into tile coordinates,
+        // then determine which chunk contains the player.
         int tileX = (int) Math.floor(player.getX() / TileRenderer.TILE_SIZE);
         int tileY = (int) Math.floor(player.getY() / TileRenderer.TILE_SIZE);
 
         int chunkX = Chunk.chunkCoordinate(tileX);
         int chunkY = Chunk.chunkCoordinate(tileY);
 
+        // Only update chunk loading when the player enters a different chunk.
         if (chunkX == lastChunkX && chunkY == lastChunkY) return;
 
         chunkManager.loadAround(chunkX, chunkY, CHUNK_LOAD_RADIUS);
+
         chunkManager.unloadOutside(chunkX, chunkY, CHUNK_UNLOAD_RADIUS);
 
         chunks = List.copyOf(chunkManager.getLoadedChunks());
