@@ -32,6 +32,7 @@ public class ServerLauncher {
     private static float dayLengthSeconds = 10;
     private static float nightThreshold = 0.7f;
     private static int winThreshold = 5;
+    private static boolean gameStarted = false;
 
     // Internal timers
     private static float syncTimer = 0f;
@@ -52,14 +53,22 @@ public class ServerLauncher {
         server.addListener(new Listener() {
             @Override
             public void connected(Connection connection) {
+                if (!gameStarted) {
+                    gameStarted = true;
+                    lastTime = System.nanoTime();
+                    System.out.println("SERVER: Game started!");
+                }
+
                 Welcome welcome = new Welcome();
                 welcome.playerId = connection.getID();
                 welcome.worldSeed = worldSeed;
                 welcome.generatorVersion = WorldGenerator.VERSION;
                 connection.sendTCP(welcome);
+
                 for (PlayerPosition player : players.values()) {
                     connection.sendTCP(player);
                 }
+
                 System.out.println("SERVER: Player " + connection.getID() + " connected.");
             }
 
@@ -86,8 +95,20 @@ public class ServerLauncher {
             @Override
             public void disconnected(Connection connection) {
                 players.remove(connection.getID());
+
                 PlayerLeft left = new PlayerLeft(connection.getID());
-                for (Connection recipient : server.getConnections()) recipient.sendTCP(left);
+                for (Connection recipient : server.getConnections()) {
+                    recipient.sendTCP(left);
+                }
+
+                if (server.getConnections().size() == 0) {
+                    gameStarted = false;
+                    timeTimer = 0;
+                    syncTimer = 0;
+                    day = 1;
+                    System.out.println("SERVER: All players disconnected. Game stopped.");
+                }
+
                 System.out.println("SERVER: Player " + connection.getID() + " disconnected.");
             }
         });
@@ -115,6 +136,8 @@ public class ServerLauncher {
     }
 
     public static void update(float delta, Server server) {
+        if (!gameStarted || server.getConnections().size() == 0) return;
+
         timeTimer += delta;
         syncTimer += delta;
 
