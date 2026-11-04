@@ -12,7 +12,9 @@ import java.util.List;
  */
 public class AiSystem {
 
-    /** Target scanning is relatively expensive, so it runs a few times per second, not every tick. */
+    /**
+     * Target scanning is relatively expensive, so it runs a few times per second, not every tick.
+     */
     private static final float SCAN_INTERVAL = 0.3f;
 
     private final List<AiEntity> entities = new ArrayList<>();
@@ -32,6 +34,13 @@ public class AiSystem {
         }
 
         for (AiEntity entity : entities) {
+            // A target that left the players collection (disconnect, removal) must be dropped,
+            // even if its isAlive() still returns true. The FSM then falls back to IDLE / RETURN.
+            Targetable current = entity.getTargetEntity();
+            if (current != null && !players.contains(current)) {
+                entity.setTargetEntity(null);
+            }
+
             if (scan && !entity.hasValidTarget() && entity.canAcquireTarget()) {
                 entity.setTargetEntity(findNearestInAggroRange(entity, players));
             }
@@ -39,7 +48,9 @@ public class AiSystem {
         }
     }
 
-    /** Removes and returns dead entities so the caller can notify clients / schedule respawns. */
+    /**
+     * Removes and returns dead entities so the caller can notify clients / schedule respawns.
+     */
     public List<AiEntity> removeDead() {
         List<AiEntity> removed = new ArrayList<>();
         Iterator<AiEntity> it = entities.iterator();

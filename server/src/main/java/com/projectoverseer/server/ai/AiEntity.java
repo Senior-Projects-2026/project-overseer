@@ -50,9 +50,7 @@ public class AiEntity implements Targetable {
         this.stateMachine.update();
     }
 
-    // =========================================================================
     // OVERRIDABLE BEHAVIOR HOOKS (Subclasses override these, NOT the FSM states)
-    // =========================================================================
 
     /**
      * Override in subclasses for ranged attacks, AoE spells, or custom packet broadcasts.
@@ -97,9 +95,8 @@ public class AiEntity implements Targetable {
         position.mulAdd(tmpDirection, speed * deltaTime);
     }
 
-    // =========================================================================
+
     // GENERIC HELPER & STATE QUERIES
-    // =========================================================================
 
     public boolean hasReachedPosition(Vector2 destination, float stopRadius) {
         return position.dst2(destination) <= (stopRadius * stopRadius);
