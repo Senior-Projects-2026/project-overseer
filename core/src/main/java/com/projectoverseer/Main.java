@@ -240,7 +240,7 @@ public class Main extends ApplicationAdapter {
             return;
         }
 
-        player.update();
+        player.update(chunks);
 
         if (isConnected) {
             positionUpdateTimer += Gdx.graphics.getDeltaTime() * 1000f;
@@ -251,7 +251,7 @@ public class Main extends ApplicationAdapter {
             }
         }
 
-        for (Player other : otherPlayers.values()) other.update();
+        for (Player other : otherPlayers.values()) other.update(chunks);
 
         float deadzoneWidth = 100f;
         float deadzoneHeight = 80f;

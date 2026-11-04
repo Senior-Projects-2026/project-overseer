@@ -42,7 +42,7 @@ public class Lwjgl3Launcher {
         //// You can choose to add the following line and the mentioned dependency if you want; they
         //// are not intended for games that use GL30 (which is compatibility with OpenGL ES 3.0).
         //// Know that it might not work well in some cases.
-//        configuration.setOpenGLEmulation(Lwjgl3ApplicationConfiguration.GLEmulation.ANGLE_GLES20, 0, 0);
+        ///configuration.setOpenGLEmulation(Lwjgl3ApplicationConfiguration.GLEmulation.ANGLE_GLES20, 0, 0);
 
         return configuration;
     }
