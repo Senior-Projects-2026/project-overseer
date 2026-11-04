@@ -5,20 +5,73 @@ import com.esotericsoftware.kryonet.Listener;
 import com.esotericsoftware.kryonet.Server;
 import com.projectoverseer.shared.Network;
 import com.projectoverseer.shared.Network.Ping;
+import com.projectoverseer.shared.Network.PlayerLeft;
+import com.projectoverseer.shared.Network.PlayerPosition;
+import com.projectoverseer.shared.Network.PositionUpdate;
+import com.projectoverseer.shared.Network.Welcome;
+import com.projectoverseer.shared.Network.TimeSync;
+import com.projectoverseer.shared.Network.GameEnd;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.List;
+import com.projectoverseer.shared.world.Chunk;
+import com.projectoverseer.shared.world.generation.WorldGenerator;
 
 /** Launches the server application. */
 public class ServerLauncher {
+    private static List<Chunk> worldChunks;
+    // Server configuration
+    private static int serverSleepTime = 50;
+    private static float serverSyncInterval = 1f;
+
+    // Day-Night logic
+    private static int day = 1;
+    private static float timeTimer = 0;
+    private static float dayLengthSeconds = 10;
+    private static float nightThreshold = 0.7f;
+    private static int winThreshold = 5;
+    private static boolean gameStarted = false;
+
+    // Internal timers
+    private static float syncTimer = 0f;
+    private static long lastTime;
+
     public static void main(String[] args) throws IOException {
+        long worldSeed = Long.parseLong(Network.CONFIG.getProperty("world.seed", "123"));
+        WorldGenerator generator = new WorldGenerator(worldSeed);
+        worldChunks = generator.generateInitialChunks();
+        System.out.println("SERVER: World seed " + worldSeed + ", generator version "
+            + WorldGenerator.VERSION + ", chunks " + worldChunks.size());
         Server server = new Server();
-        server.start();
-
         Network.register(server);
-
         server.bind(Network.TCP_PORT, Network.UDP_PORT);
 
+        Map<Integer, PlayerPosition> players = new HashMap<>();
+
         server.addListener(new Listener() {
+            @Override
+            public void connected(Connection connection) {
+                if (!gameStarted) {
+                    gameStarted = true;
+                    lastTime = System.nanoTime();
+                    System.out.println("SERVER: Game started!");
+                }
+
+                Welcome welcome = new Welcome();
+                welcome.playerId = connection.getID();
+                welcome.worldSeed = worldSeed;
+                welcome.generatorVersion = WorldGenerator.VERSION;
+                connection.sendTCP(welcome);
+
+                for (PlayerPosition player : players.values()) {
+                    connection.sendTCP(player);
+                }
+
+                System.out.println("SERVER: Player " + connection.getID() + " connected.");
+            }
+
             @Override
             public void received(Connection connection, Object object) {
                 if (object instanceof Ping) {
@@ -28,10 +81,88 @@ public class ServerLauncher {
                     Ping response = new Ping();
                     response.message = "Pong from server, I hear you perfectly!";
                     connection.sendTCP(response);
+                } else if (object instanceof PositionUpdate) {
+                    PositionUpdate update = (PositionUpdate) object;
+                    PlayerPosition position = new PlayerPosition(
+                        connection.getID(), update.x, update.y, update.direction, update.moving);
+                    players.put(connection.getID(), position);
+                    for (Connection recipient : server.getConnections()) {
+                        if (recipient.getID() != connection.getID()) recipient.sendUDP(position);
+                    }
                 }
+            }
+
+            @Override
+            public void disconnected(Connection connection) {
+                players.remove(connection.getID());
+
+                PlayerLeft left = new PlayerLeft(connection.getID());
+                for (Connection recipient : server.getConnections()) {
+                    recipient.sendTCP(left);
+                }
+
+                if (server.getConnections().size() == 0) {
+                    gameStarted = false;
+                    timeTimer = 0;
+                    syncTimer = 0;
+                    day = 1;
+                    System.out.println("SERVER: All players disconnected. Game stopped.");
+                }
+
+                System.out.println("SERVER: Player " + connection.getID() + " disconnected.");
             }
         });
 
-        System.out.println("SERVER: Successfully started and waiting for connections...");
+        server.start();
+        System.out.println("SERVER: Listening on TCP " + Network.TCP_PORT + " and UDP " + Network.UDP_PORT + "...");
+
+        lastTime = System.nanoTime();
+
+        while (true) {
+            long currentTime = System.nanoTime();
+            float delta = (currentTime - lastTime) / 1_000_000_000.0f;
+            lastTime = currentTime;
+
+            update(delta, server);
+
+            try {
+                Thread.sleep(serverSleepTime); // Target ~20 TPS
+            } catch (InterruptedException e) {
+                System.err.println("SERVER: Thread interrupted!");
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+    }
+
+    public static void update(float delta, Server server) {
+        if (!gameStarted || server.getConnections().size() == 0) return;
+
+        timeTimer += delta;
+        syncTimer += delta;
+
+        if (timeTimer >= dayLengthSeconds) {
+            timeTimer = 0;
+            day++;
+            System.out.println("SERVER: A new day begins! Day " + day);
+        }
+
+        if (syncTimer >= serverSyncInterval) {
+            syncTimer = 0f;
+
+            boolean isNight = timeTimer > dayLengthSeconds * nightThreshold;
+            TimeSync syncPacket = new TimeSync();
+            syncPacket.currentDay = day;
+            syncPacket.isNight = isNight;
+            server.sendToAllTCP(syncPacket);
+
+            if (day > winThreshold) {
+                GameEnd endPacket = new GameEnd();
+                endPacket.isVictory = true;
+                server.sendToAllTCP(endPacket);
+                System.out.println("SERVER: " + winThreshold + " days survived. Victory packet sent!");
+                System.exit(0); // Close server when win is reached
+            }
+        }
     }
 }

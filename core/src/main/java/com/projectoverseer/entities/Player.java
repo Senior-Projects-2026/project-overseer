@@ -8,25 +8,46 @@ import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.math.Vector2;
 
+import com.projectoverseer.gameplay.PlayerStats;
+import com.projectoverseer.gameplay.Inventory;
+
+
 public class Player {
-    float x = 400;
-    float y = 300;
-    float speed = 100;
-    Vector2 movement = new Vector2();
+    public static final int DOWN = 0;
+    public static final int UP = 1;
+    public static final int LEFT = 2;
+    public static final int RIGHT = 3;
+    public static final int UP_LEFT = 4;
+    public static final int UP_RIGHT = 5;
+    public static final int DOWN_LEFT = 6;
+    public static final int DOWN_RIGHT = 7;
 
-    Texture spriteSheet;
-    Animation<TextureRegion> walkUp;
-    Animation<TextureRegion> walkLeft;
-    Animation<TextureRegion> walkDown;
-    Animation<TextureRegion> walkRight;
-    Animation<TextureRegion> walkUpLeft;
-    Animation<TextureRegion> walkUpRight;
-    Animation<TextureRegion> walkDownLeft;
-    Animation<TextureRegion> walkDownRight;
-    Animation<TextureRegion> currentAnimation;
-    float stateTime = 0f;
 
-    public Player() {
+    private final PlayerStats stats = new PlayerStats();
+    private final Inventory inventory = new Inventory();
+
+    private float x = 400;
+    private float y = 300;
+    private float speed = 100;
+    private final Vector2 movement = new Vector2();
+    private final boolean localPlayer;
+    private int direction = DOWN;
+    private boolean moving;
+
+    private Texture spriteSheet;
+    private Animation<TextureRegion> walkUp;
+    private Animation<TextureRegion> walkLeft;
+    private Animation<TextureRegion> walkDown;
+    private Animation<TextureRegion> walkRight;
+    private Animation<TextureRegion> walkUpLeft;
+    private Animation<TextureRegion> walkUpRight;
+    private Animation<TextureRegion> walkDownLeft;
+    private Animation<TextureRegion> walkDownRight;
+    private Animation<TextureRegion> currentAnimation;
+    private float stateTime = 0f;
+
+    public Player(boolean localPlayer) {
+        this.localPlayer = localPlayer;
         spriteSheet = new Texture("player.png");
 
         TextureRegion[][] frames = TextureRegion.split(spriteSheet,
@@ -46,7 +67,21 @@ public class Player {
         currentAnimation = walkDown;
     }
 
+
+    public PlayerStats getStats() {
+        return stats;
+    }
+
+    public Inventory getInventory() {
+        return inventory;
+    }
+
     public void update() {
+        if (!localPlayer) {
+            stateTime = moving ? stateTime + Gdx.graphics.getDeltaTime() : 0f;
+            return;
+        }
+
         movement.set(0, 0);
 
         if (Gdx.input.isKeyPressed(Input.Keys.W)) {
@@ -65,30 +100,40 @@ public class Player {
         if (!movement.isZero()) {
             movement.nor();
             stateTime += Gdx.graphics.getDeltaTime();
+            moving = true;
 
 
             // 1. Check diagonals FIRST (both X and Y are non-zero)
             if (movement.x > 0 && movement.y > 0) {
                 currentAnimation = walkUpRight;
+                direction = UP_RIGHT;
             } else if (movement.x < 0 && movement.y > 0) {
                 currentAnimation = walkUpLeft;
+                direction = UP_LEFT;
             } else if (movement.x > 0 && movement.y < 0) {
                 currentAnimation = walkDownRight;
+                direction = DOWN_RIGHT;
             } else if (movement.x < 0 && movement.y < 0) {
                 currentAnimation = walkDownLeft;
+                direction = DOWN_LEFT;
             }
 
             // 2. Check straight directions ONLY IF no diagonal is pressed
             else if (movement.y > 0) {
                 currentAnimation = walkUp;
+                direction = UP;
             } else if (movement.y < 0) {
                 currentAnimation = walkDown;
+                direction = DOWN;
             } else if (movement.x < 0) {
                 currentAnimation = walkLeft;
+                direction = LEFT;
             } else if (movement.x > 0) {
                 currentAnimation = walkRight;
+                direction = RIGHT;
             }
         } else {
+            moving = false;
             stateTime = 0f;
         }
 
@@ -103,9 +148,42 @@ public class Player {
         batch.draw(currentFrame, x, y);
     }
 
+    /** Applies authoritative position and animation state received for a remote player. */
+    public void setRemoteState(float x, float y, int direction, boolean moving) {
+        this.x = x;
+        this.y = y;
+        if (direction >= DOWN && direction <= DOWN_RIGHT && this.direction != direction) {
+            this.direction = direction;
+            switch (direction) {
+                case DOWN: currentAnimation = walkDown; break;
+                case UP: currentAnimation = walkUp; break;
+                case LEFT: currentAnimation = walkLeft; break;
+                case RIGHT: currentAnimation = walkRight; break;
+                case UP_LEFT: currentAnimation = walkUpLeft; break;
+                case UP_RIGHT: currentAnimation = walkUpRight; break;
+                case DOWN_LEFT: currentAnimation = walkDownLeft; break;
+                case DOWN_RIGHT: currentAnimation = walkDownRight; break;
+                default: break;
+            }
+            stateTime = 0f;
+        }
+        if (this.moving != moving) stateTime = 0f;
+        this.moving = moving;
+    }
+
     public void dispose() {
         if (spriteSheet != null) {
             spriteSheet.dispose();
         }
     }
+    public float getX() {
+        return x;
+    }
+
+    public float getY() {
+        return y;
+    }
+
+    public int getDirection() { return direction; }
+    public boolean isMoving() { return moving; }
 }

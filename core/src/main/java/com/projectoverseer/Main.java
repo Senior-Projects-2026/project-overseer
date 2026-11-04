@@ -1,44 +1,98 @@
 package com.projectoverseer;
 
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import com.badlogic.gdx.ApplicationAdapter;
 import com.badlogic.gdx.Gdx;
-import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.GL20;
+import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.utils.ScreenUtils;
+import com.badlogic.gdx.utils.Timer;
+import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.esotericsoftware.kryonet.Client;
 import com.esotericsoftware.kryonet.Connection;
 import com.esotericsoftware.kryonet.Listener;
 import com.projectoverseer.entities.Player;
+import com.projectoverseer.environment.DayNightRenderer;
 import com.projectoverseer.shared.Network;
+import com.projectoverseer.shared.Network.GameEnd;
 import com.projectoverseer.shared.Network.Ping;
+import com.projectoverseer.shared.Network.PlayerLeft;
+import com.projectoverseer.shared.Network.PlayerPosition;
+import com.projectoverseer.shared.Network.PositionUpdate;
+import com.projectoverseer.shared.Network.TimeSync;
+import com.projectoverseer.shared.Network.Welcome;
+import com.projectoverseer.shared.world.Chunk;
+import com.projectoverseer.shared.world.ChunkManager;
+import com.projectoverseer.shared.world.generation.WorldGenerator;
+import com.projectoverseer.ui.GameHUD;
 import com.projectoverseer.ui.MainMenu;
-
-import java.io.IOException;
+import com.projectoverseer.world.TileRenderer;
+import com.projectoverseer.world.WorldObjectRenderer;
 
 /** {@link com.badlogic.gdx.ApplicationListener} implementation shared by all platforms. */
 public class Main extends ApplicationAdapter {
     private enum GameState {
         MENU,
         CONNECTING,
-        PLAYING
+        PLAYING,
+        VICTORY
     }
 
     private Client client;
     private SpriteBatch batch;
-    private Texture smiley;
     private MainMenu menu;
-
-    private volatile boolean isConnected;
     private GameState gameState = GameState.MENU;
 
-    Player player;
+    private volatile int currentDay = 1;
+    private volatile boolean isNight = false;
+    private DayNightRenderer dayNightRenderer;
+
+    private OrthographicCamera camera;
+    private FitViewport viewport;
+
+    private Player player;
+    private final Map<Integer, Player> otherPlayers = new HashMap<>();
+    private TileRenderer tileRenderer;
+    private WorldObjectRenderer worldObjectRenderer;
+
+    private ChunkManager chunkManager;
+    private static final int CHUNK_LOAD_RADIUS = 2;
+    private static final int CHUNK_UNLOAD_RADIUS = 3;
+    private int lastChunkX = Integer.MIN_VALUE;
+    private int lastChunkY = Integer.MIN_VALUE;
+    private List<Chunk> chunks;
+
+    private GameHUD hud;
+
+    private volatile boolean isConnected;
+    private volatile int playerId = -1;
+    private float positionUpdateTimer;
+    private Timer.Task welcomeTimeout;
+    private String connectionError;
+
 
     @Override
     public void create() {
         batch = new SpriteBatch();
-        smiley = new Texture("smiley.png");
+        camera = new OrthographicCamera();
+        viewport = new FitViewport(640, 360, camera);
+        tileRenderer = new TileRenderer();
+        worldObjectRenderer = new WorldObjectRenderer();
+        chunks = List.of();
+        dayNightRenderer = new DayNightRenderer();
 
         createClient();
+
+        hud = new GameHUD(
+            player.getStats(),
+            player.getInventory()
+        );
+
         menu = new MainMenu(this::connectToServer);
         menu.show("Choose Play to connect to the server.");
     }
@@ -48,7 +102,7 @@ public class Main extends ApplicationAdapter {
         client.start();
         Network.register(client);
 
-        player = new Player();
+        player = new Player(true);
 
         client.addListener(new Listener() {
             @Override
@@ -56,6 +110,36 @@ public class Main extends ApplicationAdapter {
                 if (object instanceof Ping) {
                     Ping ping = (Ping) object;
                     System.out.println("CLIENT: Received from server -> " + ping.message);
+                } else if (object instanceof Welcome) {
+                    Welcome welcome = (Welcome) object;
+                    // Keep GL-facing state and the generated map on the render thread.
+                    Gdx.app.postRunnable(() -> acceptWelcome(connection, welcome));
+                } else if (object instanceof PlayerPosition) {
+                    PlayerPosition position = (PlayerPosition) object;
+                    if (position.playerId != playerId) {
+                        Gdx.app.postRunnable(() -> {
+                            Player remote = otherPlayers.computeIfAbsent(
+                                position.playerId, id -> new Player(false));
+                            remote.setRemoteState(position.x, position.y, position.direction, position.moving);
+                        });
+                    }
+                } else if (object instanceof PlayerLeft) {
+                    int leftId = ((PlayerLeft) object).playerId;
+                    Gdx.app.postRunnable(() -> {
+                        Player removed = otherPlayers.remove(leftId);
+                        if (removed != null) removed.dispose();
+                    });
+                } else if (object instanceof TimeSync) {
+                    TimeSync sync = (TimeSync) object;
+                    currentDay = sync.currentDay;
+                    isNight = sync.isNight;
+                } else if (object instanceof GameEnd) {
+                    GameEnd end = (GameEnd) object;
+                    if (end.isVictory) {
+                        Gdx.app.postRunnable(() -> {
+                            gameState = GameState.VICTORY;
+                        });
+                    }
                 }
             }
 
@@ -63,6 +147,23 @@ public class Main extends ApplicationAdapter {
             public void disconnected(Connection connection) {
                 System.out.println("CLIENT: Lost connection to server!");
                 isConnected = false;
+                playerId = -1;
+
+                Gdx.app.postRunnable(() -> {
+                    disposeOtherPlayers();
+
+                    if (gameState == GameState.VICTORY) {
+                        Timer.schedule(new Timer.Task() {
+                            @Override
+                            public void run() {
+                                showMenu("Victory! Ready for another round?");
+                            }
+                        }, 10f);
+                    } else {
+                        showMenu(connectionError != null ? connectionError
+                            : "Connection lost. Choose Play to reconnect.");
+                    }
+                });
             }
         });
     }
@@ -73,19 +174,30 @@ public class Main extends ApplicationAdapter {
         }
 
         gameState = GameState.CONNECTING;
-        menu.show("Connecting to localhost...");
-        menu.hide();
+        connectionError = null;
+        chunks = List.of();
+        menu.show("Connecting to " + Network.SERVER_HOST + "...");
+        // Keep connection status visible until Welcome has supplied the world seed.
+        welcomeTimeout = Timer.schedule(new Timer.Task() {
+            @Override
+            public void run() {
+                if (gameState == GameState.CONNECTING) {
+                    connectionError = "Timed out waiting for world data. Please reconnect.";
+                    client.close();
+                    showMenu(connectionError);
+                }
+            }
+        }, 10f);
 
         new Thread(() -> {
             try {
-                client.connect(5000, "localhost", Network.TCP_PORT, Network.UDP_PORT);
+                client.connect(5000, Network.SERVER_HOST, Network.TCP_PORT, Network.UDP_PORT);
 
                 Ping myPing = new Ping();
                 myPing.message = "Hello Server, I am a new client!";
                 client.sendTCP(myPing);
 
-                isConnected = true;
-                Gdx.app.postRunnable(() -> gameState = GameState.PLAYING);
+                // PLAYING begins only when acceptWelcome has generated the map.
             } catch (IOException e) {
                 System.err.println("CLIENT: Could not connect to server!");
                 e.printStackTrace();
@@ -95,9 +207,41 @@ public class Main extends ApplicationAdapter {
     }
 
     private void showMenu(String status) {
+        if (welcomeTimeout != null) welcomeTimeout.cancel();
         isConnected = false;
         gameState = GameState.MENU;
         menu.show(status);
+    }
+
+    private void acceptWelcome(Connection connection, Welcome welcome) {
+        if (gameState != GameState.CONNECTING || !connection.isConnected()) return;
+        try {
+            WorldGenerator generator = WorldGenerator.fromServer(
+                welcome.worldSeed,
+                welcome.generatorVersion
+            );
+
+            // Creat ChunkManager using world seed and gen vers + force initial chunk update
+            chunkManager = new ChunkManager(generator);
+            lastChunkX = Integer.MIN_VALUE;
+            lastChunkY = Integer.MIN_VALUE;
+
+            updateLoadedChunks();
+        } catch (IllegalArgumentException e) {
+            connectionError = "World generator version mismatch. Update client and server.";
+            client.close();
+            showMenu(connectionError);
+            return;
+        }
+        if (welcomeTimeout != null) welcomeTimeout.cancel();
+        playerId = welcome.playerId;
+        isConnected = true;
+        positionUpdateTimer = 0f;
+        menu.hide();
+        gameState = GameState.PLAYING;
+        Gdx.input.setInputProcessor(hud.getStage());
+        System.out.println("CLIENT: World seed " + welcome.worldSeed + ", generator version "
+            + welcome.generatorVersion + ", chunks " + chunks.size());
     }
 
     @Override
@@ -107,12 +251,80 @@ public class Main extends ApplicationAdapter {
             return;
         }
 
-        player.update();
+        if (gameState == GameState.VICTORY) {
+            ScreenUtils.clear(0.1f, 0.4f, 0.1f, 1f);
+            dayNightRenderer.renderVictoryScreen(camera, batch);
+            return;
+        }
 
-            ScreenUtils.clear(0f, 0.6f, 0f, 1f);
+        player.update();
+        updateLoadedChunks();
+
+        if (isConnected) {
+            positionUpdateTimer += Gdx.graphics.getDeltaTime() * 1000f;
+            if (positionUpdateTimer >= Network.POSITION_UPDATE_INTERVAL_MS) {
+                positionUpdateTimer = 0f;
+                client.sendUDP(new PositionUpdate(
+                    player.getX(), player.getY(), player.getDirection(), player.isMoving()));
+            }
+        }
+
+        for (Player other : otherPlayers.values()) other.update();
+
+        float deadzoneWidth = 100f;
+        float deadzoneHeight = 80f;
+
+        float leftBoundary = camera.position.x - deadzoneWidth;
+        float rightBoundary = camera.position.x + deadzoneWidth;
+        float bottomBoundary = camera.position.y - deadzoneHeight;
+        float topBoundary = camera.position.y + deadzoneHeight;
+
+        float playerX = player.getX() + 20;
+        float playerY = player.getY() + 20;
+
+        if (playerX < leftBoundary) {
+            camera.position.x = playerX + deadzoneWidth;
+        } else if (playerX > rightBoundary) {
+            camera.position.x = playerX - deadzoneWidth;
+        }
+
+        if (playerY < bottomBoundary) {
+            camera.position.y = playerY + deadzoneHeight;
+        } else if (playerY > topBoundary) {
+            camera.position.y = playerY - deadzoneHeight;
+        }
+
+        camera.position.x = Math.round(camera.position.x);
+        camera.position.y = Math.round(camera.position.y);
+
+        camera.update();
+
+        // Making the entire screen black for black screen borders
+        Gdx.gl.glClearColor(0, 0, 0, 1);
+        Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
+
+        viewport.apply();
+
+        // Scissor test for game background
+        Gdx.gl.glEnable(GL20.GL_SCISSOR_TEST);
+        Gdx.gl.glScissor(viewport.getScreenX(), viewport.getScreenY(), viewport.getScreenWidth(), viewport.getScreenHeight());
+
+        // Grey background color
+        Gdx.gl.glClearColor(0.08f, 0.10f, 0.12f, 1f);
+        Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
+
+        // Disable Scissor test for subsequent rendering
+        Gdx.gl.glDisable(GL20.GL_SCISSOR_TEST);
+
+        batch.setProjectionMatrix(camera.combined);
         batch.begin();
-        player.render(batch);
+        tileRenderer.render(batch, chunks, camera);
+        worldObjectRenderer.render(batch, chunks, camera, player, otherPlayers.values());
         batch.end();
+
+        hud.render(Gdx.graphics.getDeltaTime());
+
+        dayNightRenderer.render(camera, batch, currentDay, isNight);
     }
 
     @Override
@@ -120,15 +332,65 @@ public class Main extends ApplicationAdapter {
         if (menu != null) {
             menu.resize(width, height);
         }
+
+        viewport.update(width, height, false);
+
+        if (hud != null) {
+            hud.resize(width, height);
+        }
+
     }
 
     @Override
     public void dispose() {
+        if (welcomeTimeout != null) welcomeTimeout.cancel();
         if (client != null) {
             client.stop();
         }
         if (menu != null) menu.dispose();
         if (batch != null) batch.dispose();
         if (player != null) player.dispose();
+        disposeOtherPlayers();
+        if (tileRenderer != null) tileRenderer.dispose();
+        if (worldObjectRenderer != null) worldObjectRenderer.dispose();
+        if (dayNightRenderer != null) dayNightRenderer.dispose();
+        if (hud != null) hud.dispose();
+    }
+
+    private void disposeOtherPlayers() {
+        for (Player other : otherPlayers.values()) other.dispose();
+        otherPlayers.clear();
+
+    }
+
+    /**
+     * Updates the loaded chunks based on the player's current position.
+     * Loads nearby chunks and unloads chunks that are too far away.
+     */
+    private void updateLoadedChunks() {
+        if (chunkManager == null) return;
+
+        // Convert the player's world position into tile coordinates,
+        // then determine which chunk contains the player.
+        int tileX = (int) Math.floor(player.getX() / TileRenderer.TILE_SIZE);
+        int tileY = (int) Math.floor(player.getY() / TileRenderer.TILE_SIZE);
+
+        int chunkX = Chunk.chunkCoordinate(tileX);
+        int chunkY = Chunk.chunkCoordinate(tileY);
+
+        // Only update chunk loading when the player enters a different chunk.
+        if (chunkX == lastChunkX && chunkY == lastChunkY) return;
+
+        chunkManager.loadAround(chunkX, chunkY, CHUNK_LOAD_RADIUS);
+
+        chunkManager.unloadOutside(chunkX, chunkY, CHUNK_UNLOAD_RADIUS);
+
+        chunks = List.copyOf(chunkManager.getLoadedChunks());
+
+        lastChunkX = chunkX;
+        lastChunkY = chunkY;
+
+        System.out.println("CLIENT: Loaded " + chunks.size()
+            + " chunks around (" + chunkX + ", " + chunkY + ")");
     }
 }
