@@ -1,5 +1,10 @@
 package com.projectoverseer;
 
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import com.badlogic.gdx.ApplicationAdapter;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.GL20;
@@ -14,24 +19,20 @@ import com.esotericsoftware.kryonet.Listener;
 import com.projectoverseer.entities.Player;
 import com.projectoverseer.environment.DayNightRenderer;
 import com.projectoverseer.shared.Network;
-import com.projectoverseer.shared.Network.Ping;
-import com.projectoverseer.ui.GameHUD;
-import com.projectoverseer.shared.Network.TimeSync;
 import com.projectoverseer.shared.Network.GameEnd;
+import com.projectoverseer.shared.Network.Ping;
 import com.projectoverseer.shared.Network.PlayerLeft;
 import com.projectoverseer.shared.Network.PlayerPosition;
 import com.projectoverseer.shared.Network.PositionUpdate;
+import com.projectoverseer.shared.Network.TimeSync;
 import com.projectoverseer.shared.Network.Welcome;
-import com.projectoverseer.ui.MainMenu;
 import com.projectoverseer.shared.world.Chunk;
+import com.projectoverseer.shared.world.ChunkManager;
 import com.projectoverseer.shared.world.generation.WorldGenerator;
+import com.projectoverseer.ui.GameHUD;
+import com.projectoverseer.ui.MainMenu;
 import com.projectoverseer.world.TileRenderer;
 import com.projectoverseer.world.WorldObjectRenderer;
-
-import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.List;
 
 /** {@link com.badlogic.gdx.ApplicationListener} implementation shared by all platforms. */
 public class Main extends ApplicationAdapter {
@@ -58,6 +59,12 @@ public class Main extends ApplicationAdapter {
     private final Map<Integer, Player> otherPlayers = new HashMap<>();
     private TileRenderer tileRenderer;
     private WorldObjectRenderer worldObjectRenderer;
+
+    private ChunkManager chunkManager;
+    private static final int CHUNK_LOAD_RADIUS = 2;
+    private static final int CHUNK_UNLOAD_RADIUS = 3;
+    private int lastChunkX = Integer.MIN_VALUE;
+    private int lastChunkY = Integer.MIN_VALUE;
     private List<Chunk> chunks;
 
     private GameHUD hud;
@@ -67,6 +74,7 @@ public class Main extends ApplicationAdapter {
     private float positionUpdateTimer;
     private Timer.Task welcomeTimeout;
     private String connectionError;
+
 
     @Override
     public void create() {
@@ -208,8 +216,17 @@ public class Main extends ApplicationAdapter {
     private void acceptWelcome(Connection connection, Welcome welcome) {
         if (gameState != GameState.CONNECTING || !connection.isConnected()) return;
         try {
-            WorldGenerator generator = WorldGenerator.fromServer(welcome.worldSeed, welcome.generatorVersion);
-            chunks = generator.generateInitialChunks();
+            WorldGenerator generator = WorldGenerator.fromServer(
+                welcome.worldSeed,
+                welcome.generatorVersion
+            );
+
+            // Creat ChunkManager using world seed and gen vers + force initial chunk update
+            chunkManager = new ChunkManager(generator);
+            lastChunkX = Integer.MIN_VALUE;
+            lastChunkY = Integer.MIN_VALUE;
+
+            updateLoadedChunks();
         } catch (IllegalArgumentException e) {
             connectionError = "World generator version mismatch. Update client and server.";
             client.close();
@@ -241,6 +258,7 @@ public class Main extends ApplicationAdapter {
         }
 
         player.update(chunks);
+        updateLoadedChunks();
 
         if (isConnected) {
             positionUpdateTimer += Gdx.graphics.getDeltaTime() * 1000f;
@@ -343,5 +361,36 @@ public class Main extends ApplicationAdapter {
         for (Player other : otherPlayers.values()) other.dispose();
         otherPlayers.clear();
 
+    }
+
+    /**
+     * Updates the loaded chunks based on the player's current position.
+     * Loads nearby chunks and unloads chunks that are too far away.
+     */
+    private void updateLoadedChunks() {
+        if (chunkManager == null) return;
+
+        // Convert the player's world position into tile coordinates,
+        // then determine which chunk contains the player.
+        int tileX = (int) Math.floor(player.getX() / TileRenderer.TILE_SIZE);
+        int tileY = (int) Math.floor(player.getY() / TileRenderer.TILE_SIZE);
+
+        int chunkX = Chunk.chunkCoordinate(tileX);
+        int chunkY = Chunk.chunkCoordinate(tileY);
+
+        // Only update chunk loading when the player enters a different chunk.
+        if (chunkX == lastChunkX && chunkY == lastChunkY) return;
+
+        chunkManager.loadAround(chunkX, chunkY, CHUNK_LOAD_RADIUS);
+
+        chunkManager.unloadOutside(chunkX, chunkY, CHUNK_UNLOAD_RADIUS);
+
+        chunks = List.copyOf(chunkManager.getLoadedChunks());
+
+        lastChunkX = chunkX;
+        lastChunkY = chunkY;
+
+        System.out.println("CLIENT: Loaded " + chunks.size()
+            + " chunks around (" + chunkX + ", " + chunkY + ")");
     }
 }
