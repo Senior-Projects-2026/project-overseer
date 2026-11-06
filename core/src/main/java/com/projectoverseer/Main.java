@@ -257,7 +257,7 @@ public class Main extends ApplicationAdapter {
             return;
         }
 
-        player.update();
+        player.update(chunks);
         updateLoadedChunks();
 
         if (isConnected) {
@@ -269,7 +269,7 @@ public class Main extends ApplicationAdapter {
             }
         }
 
-        for (Player other : otherPlayers.values()) other.update();
+        for (Player other : otherPlayers.values()) other.update(chunks);
 
         float deadzoneWidth = 100f;
         float deadzoneHeight = 80f;
