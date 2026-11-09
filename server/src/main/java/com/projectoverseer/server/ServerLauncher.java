@@ -36,6 +36,8 @@ import com.projectoverseer.shared.world.generation.WorldGenerator;
 /** Launches the server application. */
 public class ServerLauncher {
     private static List<Chunk> worldChunks;
+    private static WorldGenerator worldGenerator;
+
     // Server configuration
     private static int serverSleepTime = 50;
     private static float serverSyncInterval = 1f;
@@ -63,8 +65,8 @@ public class ServerLauncher {
 
     public static void main(String[] args) throws IOException {
         long worldSeed = Long.parseLong(Network.CONFIG.getProperty("world.seed", "123"));
-        WorldGenerator generator = new WorldGenerator(worldSeed);
-        worldChunks = generator.generateInitialChunks();
+        worldGenerator = new WorldGenerator(worldSeed);
+        worldChunks = new ArrayList<>(worldGenerator.generateInitialChunks());
         System.out.println("SERVER: World seed " + worldSeed + ", generator version "
             + WorldGenerator.VERSION + ", chunks " + worldChunks.size());
         Server server = new Server();
@@ -422,7 +424,10 @@ public class ServerLauncher {
             }
         }
 
-        return null;
+        Chunk newChunk = worldGenerator.generateChunk(chunkX, chunkY);
+        worldChunks.add(newChunk);
+
+        return newChunk;
     }
 
 }
