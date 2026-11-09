@@ -314,7 +314,6 @@ public class Main extends ApplicationAdapter {
 
         int bottomY = Gdx.graphics.getHeight() - 1 - screenY;
 
-        // Verificam daca mouse-ul este in viewport
         if (screenX < viewport.getScreenX()
             || screenX >= viewport.getScreenX() + viewport.getScreenWidth()
             || bottomY < viewport.getScreenY()
@@ -322,7 +321,6 @@ public class Main extends ApplicationAdapter {
             return;
         }
 
-        // Ignoram click-urile pe HUD
         Vector2 hudPoint = new Vector2(screenX, screenY);
         hud.getStage().screenToStageCoordinates(hudPoint);
 
@@ -330,8 +328,6 @@ public class Main extends ApplicationAdapter {
             return;
         }
 
-        // Transformam coordonatele mouse-ului
-        // in coordonate ale lumii
         Vector3 mouseWorld = new Vector3(screenX, screenY, 0);
         viewport.unproject(mouseWorld);
 
@@ -346,7 +342,6 @@ public class Main extends ApplicationAdapter {
             return;
         }
 
-        // Verificam distanta fata de resursa
         float playerX = player.getX() + 16f;
         float playerY = player.getY() + 16f;
 
@@ -360,7 +355,6 @@ public class Main extends ApplicationAdapter {
             return;
         }
 
-        // Trimitem cererea potrivita catre server
         if (resource.type() == ResourceType.TREE) {
 
             client.sendTCP(new PunchTree(
@@ -551,13 +545,11 @@ public class Main extends ApplicationAdapter {
 
         Inventory inventory = player.getInventory();
 
-        // Eliminam cantitatea locala veche
         inventory.removeItem(
             "stone",
             Inventory.SLOT_COUNT * ItemStack.MAX_STACK_SIZE
         );
 
-        // Aplicam cantitatea confirmata de server
         if (totalStone > 0) {
 
             int remaining = inventory.addItem(

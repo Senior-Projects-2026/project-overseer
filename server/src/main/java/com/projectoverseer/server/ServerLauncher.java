@@ -402,13 +402,13 @@ public class ServerLauncher {
             syncPacket.isNight = isNight;
             server.sendToAllTCP(syncPacket);
 
-//            if (day > winThreshold) {
-//                GameEnd endPacket = new GameEnd();
-//                endPacket.isVictory = true;
-//                server.sendToAllTCP(endPacket);
-//                System.out.println("SERVER: " + winThreshold + " days survived. Victory packet sent!");
-//                System.exit(0); // Close server when win is reached
-//            }
+            if (day > winThreshold) {
+                GameEnd endPacket = new GameEnd();
+                endPacket.isVictory = true;
+                server.sendToAllTCP(endPacket);
+                System.out.println("SERVER: " + winThreshold + " days survived. Victory packet sent!");
+                System.exit(0); // Close server when win is reached
+            }
         }
     }
 
