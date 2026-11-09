@@ -1,5 +1,6 @@
 package com.projectoverseer.gameplay;
 
+import com.projectoverseer.shared.crafting.CraftingRecipe;
 import java.util.Objects;
 
 public final class Inventory {
@@ -42,21 +43,23 @@ public final class Inventory {
         setSlot(index, null);
     }
 
+
     public int addItem(String itemId, int quantity) {
         validateItem(itemId, quantity);
 
         int remaining = quantity;
+        int maxStack = ItemStack.maxStackSize(itemId);
 
         for (int i = 0; i < SLOT_COUNT && remaining > 0; i++) {
             ItemStack stack = slots[i];
 
             if (stack != null
                 && stack.itemId().equals(itemId)
-                && stack.quantity() < ItemStack.MAX_STACK_SIZE) {
+                && stack.quantity() < maxStack) {
 
                 int added = Math.min(
                     remaining,
-                    ItemStack.MAX_STACK_SIZE - stack.quantity()
+                    maxStack - stack.quantity()
                 );
 
                 setSlot(i, new ItemStack(
@@ -69,19 +72,25 @@ public final class Inventory {
         }
 
         for (int i = 0; i < SLOT_COUNT && remaining > 0; i++) {
+
             if (slots[i] == null) {
                 int added = Math.min(
                     remaining,
-                    ItemStack.MAX_STACK_SIZE
+                    maxStack
                 );
 
-                setSlot(i, new ItemStack(itemId, added));
+                setSlot(
+                    i,
+                    new ItemStack(itemId, added)
+                );
+
                 remaining -= added;
             }
         }
 
         return remaining;
     }
+
 
     public int removeItem(String itemId, int quantity) {
         validateItem(itemId, quantity);
@@ -128,5 +137,66 @@ public final class Inventory {
             );
         }
     }
+
+    public int countItem(String itemId) {
+
+        if (itemId == null || itemId.isBlank()) {
+            throw new IllegalArgumentException(
+                "Invalid item ID"
+            );
+        }
+
+        int total = 0;
+
+        for (ItemStack stack : slots) {
+            if (stack != null
+                && stack.itemId().equals(itemId)) {
+
+                total += stack.quantity();
+            }
+        }
+
+        return total;
+    }
+
+    public boolean tryCraft(CraftingRecipe recipe) {
+
+        Objects.requireNonNull(recipe, "recipe");
+        if (!recipe.canCraft(
+            countItem("wood"),
+            countItem("stone")
+        )) {
+            return false;
+        }
+
+        Inventory candidate = new Inventory();
+
+        for (int i = 0; i < SLOT_COUNT; i++) {
+            candidate.setSlot(i, slots[i]);
+        }
+
+        candidate.removeItem(
+            "wood",
+            recipe.getWoodCost()
+        );
+
+        candidate.removeItem(
+            "stone",
+            recipe.getStoneCost()
+        );
+
+        int remaining = candidate.addItem(
+            recipe.getItemId(),
+            1
+        );
+        if (remaining != 0) {
+            return false;
+        }
+        for (int i = 0; i < SLOT_COUNT; i++) {
+            setSlot(i, candidate.getSlot(i));
+        }
+        return true;
+    }
+
 }
 

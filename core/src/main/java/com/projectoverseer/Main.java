@@ -16,9 +16,14 @@ import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.utils.ScreenUtils;
 import com.badlogic.gdx.utils.Timer;
 import com.badlogic.gdx.utils.viewport.FitViewport;
+import com.badlogic.gdx.Input;
+import com.badlogic.gdx.math.Vector2;
+import com.badlogic.gdx.math.Vector3;
+
 import com.esotericsoftware.kryonet.Client;
 import com.esotericsoftware.kryonet.Connection;
 import com.esotericsoftware.kryonet.Listener;
+
 import com.projectoverseer.entities.Player;
 import com.projectoverseer.environment.DayNightRenderer;
 import com.projectoverseer.gameplay.Inventory;
@@ -45,6 +50,10 @@ import com.projectoverseer.shared.Network.TreeHit;
 
 import java.io.IOException;
 import java.util.*;
+import com.projectoverseer.shared.Network.InventorySync;
+import com.projectoverseer.gameplay.Inventory;
+import com.projectoverseer.gameplay.ItemStack;
+
 
 /** {@link com.badlogic.gdx.ApplicationListener} implementation shared by all platforms. */
 public class Main extends ApplicationAdapter {
@@ -208,6 +217,47 @@ public class Main extends ApplicationAdapter {
                         updateStoneInventory(totalStone);
                     });
                 }
+                else if (object instanceof InventorySync sync) {
+
+                    if (sync.itemIds == null
+                        || sync.quantities == null
+                        || sync.itemIds.length != Inventory.SLOT_COUNT
+                        || sync.quantities.length != Inventory.SLOT_COUNT) {
+                        return;
+                    }
+
+                    ItemStack[] slots = new ItemStack[Inventory.SLOT_COUNT];
+
+                    try {
+                        for (int i = 0; i < Inventory.SLOT_COUNT; i++) {
+                            String itemId = sync.itemIds[i];
+                            int quantity = sync.quantities[i];
+
+                            if (itemId == null) {
+                                if (quantity != 0) {
+                                    return;
+                                }
+                            } else {
+                                slots[i] = new ItemStack(itemId, quantity);
+                            }
+                        }
+                    } catch (IllegalArgumentException e) {
+                        return;
+                    }
+
+                    Gdx.app.postRunnable(() -> {
+                        if (!connection.isConnected()) {
+                            return;
+                        }
+
+                        Inventory inventory = player.getInventory();
+
+                        for (int i = 0; i < Inventory.SLOT_COUNT; i++) {
+                            inventory.setSlot(i, slots[i]);
+                        }
+                    });
+                }
+
 
             }
 

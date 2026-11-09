@@ -57,7 +57,9 @@ public class Network {
         kryo.register(RockRemoved.class);
         kryo.register(StoneCountSync.class);
 
-
+        kryo.register(String[].class);
+        kryo.register(int[].class);
+        kryo.register(InventorySync.class);
     }
 
     // 3. DTOs
@@ -219,5 +221,15 @@ public class Network {
             this.totalStone = totalStone;
         }
     }
+
+    public static class InventorySync {
+
+        public String[] itemIds;
+        public int[] quantities;
+
+        public InventorySync() {
+        }
+    }
+
 
 }
