@@ -1,56 +1,37 @@
 package com.projectoverseer;
 
-import java.io.IOException;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
 import com.badlogic.gdx.ApplicationAdapter;
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Input;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import com.badlogic.gdx.math.Vector2;
+import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.utils.ScreenUtils;
 import com.badlogic.gdx.utils.Timer;
 import com.badlogic.gdx.utils.viewport.FitViewport;
-import com.badlogic.gdx.Input;
-import com.badlogic.gdx.math.Vector2;
-import com.badlogic.gdx.math.Vector3;
-
 import com.esotericsoftware.kryonet.Client;
 import com.esotericsoftware.kryonet.Connection;
 import com.esotericsoftware.kryonet.Listener;
-
 import com.projectoverseer.entities.Player;
 import com.projectoverseer.environment.DayNightRenderer;
+import com.projectoverseer.gameplay.Inventory;
+import com.projectoverseer.gameplay.ItemStack;
 import com.projectoverseer.shared.Network;
-import com.projectoverseer.shared.Network.GameEnd;
-import com.projectoverseer.shared.Network.Ping;
-import com.projectoverseer.shared.Network.PlayerLeft;
-import com.projectoverseer.shared.Network.PlayerPosition;
-import com.projectoverseer.shared.Network.PositionUpdate;
-import com.projectoverseer.shared.Network.TimeSync;
-import com.projectoverseer.shared.Network.Welcome;
+import com.projectoverseer.shared.Network.*;
 import com.projectoverseer.shared.world.Chunk;
 import com.projectoverseer.shared.world.ChunkManager;
+import com.projectoverseer.shared.world.ResourceType;
+import com.projectoverseer.shared.world.WorldResource;
 import com.projectoverseer.shared.world.generation.WorldGenerator;
 import com.projectoverseer.ui.GameHUD;
 import com.projectoverseer.ui.MainMenu;
 import com.projectoverseer.world.TileRenderer;
 import com.projectoverseer.world.WorldObjectRenderer;
-import com.projectoverseer.shared.Network.PunchTree;
-import com.projectoverseer.shared.Network.TreeRemoved;
-import com.projectoverseer.shared.Network.WoodCountSync;
-import com.projectoverseer.shared.world.WorldResource;
-import com.projectoverseer.shared.world.ResourceType;
-import com.projectoverseer.gameplay.Inventory;
-import com.projectoverseer.gameplay.ItemStack;
-import com.projectoverseer.shared.Network.TreeHit;
-import com.projectoverseer.shared.Network.PunchRock;
-import com.projectoverseer.shared.Network.RockHit;
-import com.projectoverseer.shared.Network.RockRemoved;
-import com.projectoverseer.shared.Network.StoneCountSync;
 
+import java.io.IOException;
+import java.util.*;
 
 /** {@link com.badlogic.gdx.ApplicationListener} implementation shared by all platforms. */
 public class Main extends ApplicationAdapter {
@@ -93,6 +74,8 @@ public class Main extends ApplicationAdapter {
     private Timer.Task welcomeTimeout;
     private String connectionError;
 
+    private final Set<Long> destroyedResources = new HashSet<>();
+
 
     @Override
     public void create() {
@@ -113,6 +96,11 @@ public class Main extends ApplicationAdapter {
 
         menu = new MainMenu(this::connectToServer);
         menu.show("Choose Play to connect to the server.");
+    }
+
+    private static long resourceKey(int tileX, int tileY) {
+        return ((long) tileX << 32)
+            | (tileY & 0xFFFFFFFFL);
     }
 
     private void createClient() {
@@ -239,7 +227,7 @@ public class Main extends ApplicationAdapter {
         if (gameState == GameState.CONNECTING || isConnected) {
             return;
         }
-
+        destroyedResources.clear();
         gameState = GameState.CONNECTING;
         connectionError = null;
         chunks = List.of();
@@ -504,6 +492,7 @@ public class Main extends ApplicationAdapter {
                 && resource.type() == ResourceType.TREE) {
                 chunk.removeResource(localX, localY);
             }
+            destroyedResources.add(resourceKey(tileX, tileY));
             return;
         }
     }
@@ -631,6 +620,19 @@ public class Main extends ApplicationAdapter {
         chunkManager.unloadOutside(chunkX, chunkY, CHUNK_UNLOAD_RADIUS);
 
         chunks = List.copyOf(chunkManager.getLoadedChunks());
+
+        for (Chunk chunk : chunks) {
+            for (WorldResource resource : List.copyOf(chunk.getResources())) {
+                if (destroyedResources.contains(
+                    resourceKey(resource.tileX(), resource.tileY())
+                )) {
+                    chunk.removeResource(
+                        Chunk.localCoordinate(resource.tileX()),
+                        Chunk.localCoordinate(resource.tileY())
+                    );
+                }
+            }
+        }
 
         lastChunkX = chunkX;
         lastChunkY = chunkY;
