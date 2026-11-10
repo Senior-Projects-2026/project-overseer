@@ -127,17 +127,10 @@ public class ServerLauncher {
                 for (TreeRemoved removed : destroyedTrees) {
                     connection.sendTCP(removed);
                 }
-                WoodCountSync woodSync = new WoodCountSync();
-                woodSync.totalWood = 0;
-                connection.sendTCP(woodSync);
 
                 for (RockRemoved removed : destroyedRocks) {
                     connection.sendTCP(removed);
                 }
-                StoneCountSync stoneSync = new StoneCountSync();
-                stoneSync.totalStone = 0;
-                connection.sendTCP(stoneSync);
-
             }
 
             @Override
@@ -217,9 +210,6 @@ public class ServerLauncher {
                     }
                     treeHits.remove(treeId);
                     chunk.removeResource(localX, localY);
-                    WoodCountSync woodSync = new WoodCountSync();
-                    woodSync.totalWood = inventory.countItem("wood");
-                    connection.sendTCP(woodSync);
                     sendInventorySync(connection, inventory);
                     TreeRemoved removed = new TreeRemoved();
                     removed.tileX = punch.tileX;
@@ -315,10 +305,6 @@ public class ServerLauncher {
                     rockHits.remove(rockId);
                     chunk.removeResource(localX, localY);
 
-                    StoneCountSync stoneSync = new StoneCountSync();
-                    stoneSync.totalStone = inventory.countItem("stone");
-
-                    connection.sendTCP(stoneSync);
                     sendInventorySync(connection, inventory);
 
                     RockRemoved removed = new RockRemoved();

@@ -49,13 +49,11 @@ public class Network {
 
         kryo.register(PunchTree.class);
         kryo.register(TreeRemoved.class);
-        kryo.register(WoodCountSync.class);
         kryo.register(TreeHit.class);
 
         kryo.register(PunchRock.class);
         kryo.register(RockHit.class);
         kryo.register(RockRemoved.class);
-        kryo.register(StoneCountSync.class);
 
         kryo.register(String[].class);
         kryo.register(int[].class);
@@ -155,15 +153,6 @@ public class Network {
         }
     }
 
-    public static class WoodCountSync {
-        public int totalWood;
-
-        public WoodCountSync() {}
-
-        public WoodCountSync(int totalWood) {
-            this.totalWood = totalWood;
-        }
-    }
     public static class TreeHit {
         public int tileX;
         public int tileY;
@@ -213,16 +202,6 @@ public class Network {
         public RockRemoved(int tileX, int tileY) {
             this.tileX = tileX;
             this.tileY = tileY;
-        }
-    }
-
-    public static class StoneCountSync {
-        public int totalStone;
-
-        public StoneCountSync() {}
-
-        public StoneCountSync(int totalStone) {
-            this.totalStone = totalStone;
         }
     }
 

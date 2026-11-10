@@ -1,10 +1,5 @@
 package com.projectoverseer;
 
-import java.io.IOException;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
 import com.badlogic.gdx.ApplicationAdapter;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
@@ -16,14 +11,6 @@ import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.utils.ScreenUtils;
 import com.badlogic.gdx.utils.Timer;
 import com.badlogic.gdx.utils.viewport.FitViewport;
-import com.badlogic.gdx.Input;
-import com.badlogic.gdx.math.Vector2;
-import com.badlogic.gdx.math.Vector3;
-
-import com.projectoverseer.ui.CraftingMenu;
-import com.projectoverseer.shared.Network.CraftRequest;
-import com.projectoverseer.shared.Network.CraftResult;
-
 
 import com.esotericsoftware.kryonet.Client;
 import com.esotericsoftware.kryonet.Connection;
@@ -40,24 +27,14 @@ import com.projectoverseer.shared.world.ChunkManager;
 import com.projectoverseer.shared.world.ResourceType;
 import com.projectoverseer.shared.world.WorldResource;
 import com.projectoverseer.shared.world.generation.WorldGenerator;
+import com.projectoverseer.ui.CraftingMenu;
 import com.projectoverseer.ui.GameHUD;
 import com.projectoverseer.ui.MainMenu;
 import com.projectoverseer.world.TileRenderer;
 import com.projectoverseer.world.WorldObjectRenderer;
-import com.projectoverseer.shared.Network.PunchTree;
-import com.projectoverseer.shared.Network.TreeRemoved;
-import com.projectoverseer.shared.Network.WoodCountSync;
-import com.projectoverseer.shared.world.WorldResource;
-import com.projectoverseer.shared.world.ResourceType;
-import com.projectoverseer.gameplay.Inventory;
-import com.projectoverseer.gameplay.ItemStack;
-import com.projectoverseer.shared.Network.TreeHit;
 
 import java.io.IOException;
 import java.util.*;
-import com.projectoverseer.shared.Network.InventorySync;
-import com.projectoverseer.gameplay.Inventory;
-import com.projectoverseer.gameplay.ItemStack;
 
 
 /** {@link com.badlogic.gdx.ApplicationListener} implementation shared by all platforms. */
@@ -190,11 +167,6 @@ public class Main extends ApplicationAdapter {
                     Gdx.app.postRunnable(() -> {
                         removeTreeFromWorld(tileX, tileY);
                     });
-                } else if (object instanceof WoodCountSync sync) {
-                    int totalWood = sync.totalWood;
-                    Gdx.app.postRunnable(() -> {
-                        updateWoodInventory(totalWood);
-                    });
                 }
                 else if (object instanceof TreeHit hit) {
 
@@ -224,13 +196,6 @@ public class Main extends ApplicationAdapter {
                         );
                     });
 
-                } else if (object instanceof StoneCountSync sync) {
-
-                    int totalStone = sync.totalStone;
-
-                    Gdx.app.postRunnable(() -> {
-                        updateStoneInventory(totalStone);
-                    });
                 }
                 else if (object instanceof InventorySync sync) {
 
@@ -589,27 +554,6 @@ public class Main extends ApplicationAdapter {
         }
     }
 
-    private void updateWoodInventory(int totalWood) {
-        Inventory inventory = player.getInventory();
-        inventory.removeItem(
-            "wood",
-            Inventory.SLOT_COUNT * ItemStack.MAX_STACK_SIZE
-        );
-        if (totalWood > 0) {
-            int remaining = inventory.addItem(
-                "wood",
-                totalWood
-            );
-            if (remaining > 0) {
-                System.err.println(
-                    "CLIENT: Not enough inventory space for "
-                        + remaining + " wood"
-                );
-            }
-        }
-    }
-
-
     private void removeRockFromWorld(int tileX, int tileY) {
         destroyedResources.add(resourceKey(tileX, tileY));
         int chunkX = Chunk.chunkCoordinate(tileX);
@@ -636,33 +580,6 @@ public class Main extends ApplicationAdapter {
             return;
         }
     }
-
-
-    private void updateStoneInventory(int totalStone) {
-
-        Inventory inventory = player.getInventory();
-
-        inventory.removeItem(
-            "stone",
-            Inventory.SLOT_COUNT * ItemStack.MAX_STACK_SIZE
-        );
-
-        if (totalStone > 0) {
-
-            int remaining = inventory.addItem(
-                "stone",
-                totalStone
-            );
-
-            if (remaining > 0) {
-                System.err.println(
-                    "CLIENT: Not enough space for "
-                        + remaining + " stone"
-                );
-            }
-        }
-    }
-
 
     @Override
     public void dispose() {
