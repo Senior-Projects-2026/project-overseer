@@ -535,7 +535,7 @@ public class Main extends ApplicationAdapter {
 
                 chunk.removeResource(localX, localY);
             }
-
+            destroyedResources.add(resourceKey(tileX, tileY));
             return;
         }
     }
