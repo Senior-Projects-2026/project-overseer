@@ -176,7 +176,7 @@ public class ServerLauncher {
                         ((long) punch.tileX << 32)
                             | (punch.tileY & 0xFFFFFFFFL);
 
-                    int hits = treeHits.getOrDefault(treeId, 0) + (hasAxe ? TREE_HITS_REQUIRED : 1);
+                    int hits = treeHits.getOrDefault(treeId, 0) + (hasAxe ? TREE_HITS_REQUIRED : TREE_HITS_REQUIRED/2);
 
                     TreeHit hitMessage = new TreeHit(
                         punch.tileX,
@@ -278,7 +278,7 @@ public class ServerLauncher {
                         ((long) punch.tileX << 32)
                             | (punch.tileY & 0xFFFFFFFFL);
 
-                    int hits = rockHits.getOrDefault(rockId, 0) + (hasPickaxe ? ROCK_HITS_REQUIRED : 1);
+                    int hits = rockHits.getOrDefault(rockId, 0) + (hasPickaxe ? ROCK_HITS_REQUIRED : ROCK_HITS_REQUIRED/2);
                     RockHit hitMessage = new RockHit(
                         punch.tileX,
                         punch.tileY,
