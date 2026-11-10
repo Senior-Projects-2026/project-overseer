@@ -60,6 +60,10 @@ public class Network {
         kryo.register(String[].class);
         kryo.register(int[].class);
         kryo.register(InventorySync.class);
+
+        kryo.register(CraftRequest.class);
+        kryo.register(CraftResult.class);
+
     }
 
     // 3. DTOs
@@ -230,6 +234,32 @@ public class Network {
         public InventorySync() {
         }
     }
+
+
+    public static class CraftRequest {
+        public String itemId;
+
+        public CraftRequest() {
+        }
+
+        public CraftRequest(String itemId) {
+            this.itemId = itemId;
+        }
+    }
+
+    public static class CraftResult {
+        public String itemId;
+        public boolean success;
+
+        public CraftResult() {
+        }
+
+        public CraftResult(String itemId, boolean success) {
+            this.itemId = itemId;
+            this.success = success;
+        }
+    }
+
 
 
 }

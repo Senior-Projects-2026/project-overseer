@@ -27,6 +27,9 @@ import com.projectoverseer.shared.Network.InventorySync;
 
 import com.projectoverseer.shared.world.ResourceType;
 import com.projectoverseer.shared.world.WorldResource;
+import com.projectoverseer.shared.Network.CraftRequest;
+import com.projectoverseer.shared.Network.CraftResult;
+import com.projectoverseer.shared.crafting.CraftingRecipe;
 
 import java.util.ArrayList;
 
@@ -330,6 +333,35 @@ public class ServerLauncher {
                             + " destroyed rock at "
                             + punch.tileX + ", " + punch.tileY
                     );
+                }
+                else if (object instanceof CraftRequest request) {
+
+                    int playerId = connection.getID();
+
+                    Inventory inventory = playerInventories.get(playerId);
+
+                    CraftingRecipe recipe =
+                        CraftingRecipe.fromId(request.itemId);
+
+                    boolean success = inventory != null
+                        && recipe != null
+                        && inventory.tryCraft(recipe);
+
+                    CraftResult result = new CraftResult(
+                        request.itemId,
+                        success
+                    );
+
+                    connection.sendTCP(result);
+
+                    if (success) {
+                        sendInventorySync(connection, inventory);
+
+                        System.out.println(
+                            "SERVER: Player " + playerId
+                                + " crafted " + request.itemId
+                        );
+                    }
                 }
 
             }
