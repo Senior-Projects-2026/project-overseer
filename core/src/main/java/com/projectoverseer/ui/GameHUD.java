@@ -2,6 +2,7 @@ package com.projectoverseer.ui;
 
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.Pixmap.Blending;
+import com.badlogic.gdx.scenes.scene2d.ui.Stack;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
@@ -27,7 +28,6 @@ import com.projectoverseer.gameplay.PlayerStats;
 
 public final class GameHUD implements Disposable {
 
-
     private static final int ICON_COUNT = 10;
     private static final int ICON_SIZE = 13;
 
@@ -37,6 +37,16 @@ public final class GameHUD implements Disposable {
     private static final int EMPTY = 0;
     private static final int HALF = 1;
     private static final int FULL = 2;
+
+    private final Image[] itemImages =
+        new Image[Inventory.SLOT_COUNT];
+
+    private Texture woodTexture;
+    private Drawable woodDrawable;
+
+    private Texture stoneTexture;
+    private Drawable stoneDrawable;
+
 
     private static final int[] NUMBER_KEYS = {
         Input.Keys.NUM_1, Input.Keys.NUM_2, Input.Keys.NUM_3,
@@ -113,6 +123,32 @@ public final class GameHUD implements Disposable {
             HUD_ASSET_PATH + "hunger/food_full.png", 5
         );
 
+        woodTexture = new Texture(
+            Gdx.files.internal("ui/items/wood.png")
+        );
+
+        woodTexture.setFilter(
+            Texture.TextureFilter.Nearest,
+            Texture.TextureFilter.Nearest
+        );
+
+        woodDrawable = new TextureRegionDrawable(
+            new TextureRegion(woodTexture)
+        );
+
+        stoneTexture = new Texture(
+            Gdx.files.internal("ui/items/stone.png")
+        );
+
+        stoneTexture.setFilter(
+            Texture.TextureFilter.Nearest,
+            Texture.TextureFilter.Nearest
+        );
+
+        stoneDrawable = new TextureRegionDrawable(
+            new TextureRegion(stoneTexture)
+        );
+
 
         normalSlotTexture = createSlotTexture(false);
         selectedSlotTexture = createSlotTexture(true);
@@ -135,10 +171,12 @@ public final class GameHUD implements Disposable {
             food[i] = new Image(foodIcons[FULL]);
 
             healthRow.add(hearts[i])
-                .size(ICON_SIZE).pad(0);
+                .size(ICON_SIZE)
+                .pad(0);
 
             hungerRow.add(food[i])
-                .size(ICON_SIZE).pad(0);
+                .size(ICON_SIZE)
+                .pad(0);
         }
 
         Table statsRow = new Table();
@@ -153,23 +191,45 @@ public final class GameHUD implements Disposable {
 
             Table slot = new Table();
             slot.setBackground(normalSlot);
-            slot.top();
             slotTables[i] = slot;
 
             Label number = new Label(
                 Integer.toString(i + 1), textStyle
             );
+            number.setFontScale(0.4f);
             itemLabels[i] = new Label("", textStyle);
+            itemImages[i] = new Image();
             quantityLabels[i] = new Label("", textStyle);
 
-            slot.add(number)
-                .left().padLeft(4).expandX().row();
+            Stack slotContent = new Stack();
 
-            slot.add(itemLabels[i])
-                .center().expand().row();
+            Table iconLayer = new Table();
+            iconLayer.add(itemImages[i])
+                .size(24)
+                .padBottom(4);
 
-            slot.add(quantityLabels[i])
-                .right().padRight(3).padBottom(2);
+            slotContent.add(iconLayer);
+
+            Table itemLayer = new Table();
+            itemLayer.add(itemLabels[i]).center();
+
+            slotContent.add(itemLayer);
+            Table keyLayer = new Table();
+            keyLayer.top().left();
+
+            keyLayer.add(number)
+                .padTop(1)
+                .padLeft(2);
+
+            slotContent.add(keyLayer);
+            Table quantityLayer = new Table();
+            quantityLayer.bottom().right();
+
+            quantityLayer.add(quantityLabels[i])
+                .padRight(2)
+                .padBottom(1);
+            slotContent.add(quantityLayer);
+            slot.add(slotContent).grow();
 
             slot.addListener(new ClickListener() {
                 @Override
@@ -192,15 +252,17 @@ public final class GameHUD implements Disposable {
                 + (Inventory.SLOT_COUNT - 1) * SLOT_GAP;
 
         Table content = new Table();
-        content.add(statsRow)
-            .width(hotbarWidth).padBottom(6).row();
-        content.add(hotbarRow);
 
+        content.add(statsRow)
+            .width(hotbarWidth)
+            .padBottom(6)
+            .row();
+
+        content.add(hotbarRow);
         Table anchor = new Table();
         anchor.setFillParent(true);
         anchor.bottom();
         anchor.add(content).padBottom(30);
-
         stage.addActor(anchor);
 
         refresh();
@@ -318,17 +380,45 @@ public final class GameHUD implements Disposable {
             for (int i = 0; i < Inventory.SLOT_COUNT; i++) {
                 ItemStack item = inventory.getSlot(i);
 
-                String name = item == null
-                    ? "" : item.itemId();
+                if (item == null) {
+                    itemImages[i].setDrawable(null);
+                    itemImages[i].setVisible(false);
+                    itemLabels[i].setText("");
+                    quantityLabels[i].setText("");
+                    continue;
+                }
 
-                itemLabels[i].setText(
-                    name.length() > 6
-                        ? name.substring(0, 6) : name
-                );
+
+                if ("wood".equals(item.itemId())) {
+
+                    itemImages[i].setDrawable(woodDrawable);
+                    itemImages[i].setVisible(true);
+                    itemLabels[i].setText("");
+
+                } else if ("stone".equals(item.itemId())) {
+
+                    itemImages[i].setDrawable(stoneDrawable);
+                    itemImages[i].setVisible(true);
+                    itemLabels[i].setText("");
+
+                } else {
+
+                    itemImages[i].setDrawable(null);
+                    itemImages[i].setVisible(false);
+
+                    String name = item.itemId();
+                    itemLabels[i].setText(
+                        name.length() > 6
+                            ? name.substring(0, 6)
+                            : name
+                    );
+                }
+
 
                 quantityLabels[i].setText(
-                    item != null && item.quantity() > 1
-                        ? Integer.toString(item.quantity()) : ""
+                    item.quantity() > 1
+                        ? Integer.toString(item.quantity())
+                        : ""
                 );
             }
         }
@@ -391,6 +481,14 @@ public final class GameHUD implements Disposable {
 
         normalSlotTexture.dispose();
         selectedSlotTexture.dispose();
+        if (woodTexture != null) {
+            woodTexture.dispose();
+        }
+
+        if (stoneTexture != null) {
+            stoneTexture.dispose();
+        }
+
     }
 
 }
