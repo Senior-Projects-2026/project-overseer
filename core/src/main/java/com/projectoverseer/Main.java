@@ -524,6 +524,7 @@ public class Main extends ApplicationAdapter {
         camera.position.y = Math.round(camera.position.y);
 
         camera.update();
+        handleResourcePunch();
 
         // Making the entire screen black for black screen borders
         Gdx.gl.glClearColor(0, 0, 0, 1);
@@ -568,6 +569,7 @@ public class Main extends ApplicationAdapter {
     }
 
     private void removeTreeFromWorld(int tileX, int tileY) {
+        destroyedResources.add(resourceKey(tileX, tileY));
         int chunkX = Chunk.chunkCoordinate(tileX);
         int chunkY = Chunk.chunkCoordinate(tileY);
         for (Chunk chunk : chunks) {
@@ -583,7 +585,6 @@ public class Main extends ApplicationAdapter {
                 && resource.type() == ResourceType.TREE) {
                 chunk.removeResource(localX, localY);
             }
-            destroyedResources.add(resourceKey(tileX, tileY));
             return;
         }
     }
@@ -610,7 +611,7 @@ public class Main extends ApplicationAdapter {
 
 
     private void removeRockFromWorld(int tileX, int tileY) {
-
+        destroyedResources.add(resourceKey(tileX, tileY));
         int chunkX = Chunk.chunkCoordinate(tileX);
         int chunkY = Chunk.chunkCoordinate(tileY);
 
@@ -632,7 +633,6 @@ public class Main extends ApplicationAdapter {
 
                 chunk.removeResource(localX, localY);
             }
-            destroyedResources.add(resourceKey(tileX, tileY));
             return;
         }
     }
