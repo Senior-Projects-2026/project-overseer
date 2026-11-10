@@ -42,7 +42,7 @@ public class ServerLauncher {
     private static long lastTime;
 
     private static final int TREE_HITS_REQUIRED = 6;
-    private static final int ROCK_HITS_REQUIRED = 3;
+    private static final int ROCK_HITS_REQUIRED = 7; //haha
     private static final float TILE_SIZE = 32f;
     private static final float PUNCH_RANGE = 64f;
 
@@ -165,12 +165,19 @@ public class ServerLauncher {
                     if (inventory == null || !hasRoomFor(inventory, "wood")) {
                         return;
                     }
-
+                    if (punch.selectedSlot < 0 || punch.selectedSlot >= Inventory.SLOT_COUNT) {
+                        return;
+                    }
+                    ItemStack selectedItem = inventory.getSlot(punch.selectedSlot);
+                    boolean hasAxe = selectedItem != null
+                        && "axe".equals(selectedItem.itemId());
                     lastPunchTime.put(playerId, now);
                     long treeId =
                         ((long) punch.tileX << 32)
                             | (punch.tileY & 0xFFFFFFFFL);
-                    int hits = treeHits.getOrDefault(treeId, 0) + 1;
+
+                    int hits = treeHits.getOrDefault(treeId, 0) + (hasAxe ? TREE_HITS_REQUIRED : 1);
+
                     TreeHit hitMessage = new TreeHit(
                         punch.tileX,
                         punch.tileY,
@@ -257,12 +264,21 @@ public class ServerLauncher {
                         return;
                     }
 
+                    if (punch.selectedSlot < 0 || punch.selectedSlot >= Inventory.SLOT_COUNT) {
+                        return;
+                    }
+
+                    ItemStack selectedItem = inventory.getSlot(punch.selectedSlot);
+
+                    boolean hasPickaxe = selectedItem != null
+                        && "pickaxe".equals(selectedItem.itemId());
+
                     lastPunchTime.put(playerId, now);
                     long rockId =
                         ((long) punch.tileX << 32)
                             | (punch.tileY & 0xFFFFFFFFL);
 
-                    int hits = rockHits.getOrDefault(rockId, 0) + 1;
+                    int hits = rockHits.getOrDefault(rockId, 0) + (hasPickaxe ? ROCK_HITS_REQUIRED : 1);
                     RockHit hitMessage = new RockHit(
                         punch.tileX,
                         punch.tileY,
@@ -274,7 +290,7 @@ public class ServerLauncher {
                         rockHits.put(rockId, hits);
 
                         System.out.println(
-                            "SERVER: Rock hit " + hits + "/3"
+                            "SERVER: Rock hit " + hits + "/7"
                         );
                         return;
                     }

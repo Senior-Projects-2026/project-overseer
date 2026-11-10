@@ -132,12 +132,14 @@ public class Network {
     public static class PunchTree {
         public int tileX;
         public int tileY;
+        public int selectedSlot;
 
         public PunchTree() {}
 
-        public PunchTree(int tileX, int tileY) {
+        public PunchTree(int tileX, int tileY,int selectedSlot) {
             this.tileX = tileX;
             this.tileY = tileY;
+            this.selectedSlot = selectedSlot;
         }
     }
 
@@ -170,12 +172,14 @@ public class Network {
     public static class PunchRock {
         public int tileX;
         public int tileY;
+        public int selectedSlot;
 
         public PunchRock() {}
 
-        public PunchRock(int tileX, int tileY) {
+        public PunchRock(int tileX, int tileY, int selectedSlot) {
             this.tileX = tileX;
             this.tileY = tileY;
+            this.selectedSlot = selectedSlot;
         }
     }
 

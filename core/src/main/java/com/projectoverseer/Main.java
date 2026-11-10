@@ -419,14 +419,16 @@ public class Main extends ApplicationAdapter {
 
             client.sendTCP(new PunchTree(
                 resource.tileX(),
-                resource.tileY()
+                resource.tileY(),
+                player.getInventory().getSelectedSlot()
             ));
 
         } else if (resource.type() == ResourceType.ROCK) {
 
             client.sendTCP(new PunchRock(
                 resource.tileX(),
-                resource.tileY()
+                resource.tileY(),
+                player.getInventory().getSelectedSlot()
             ));
         }
     }
