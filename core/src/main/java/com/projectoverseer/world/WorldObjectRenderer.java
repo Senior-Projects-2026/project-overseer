@@ -1,5 +1,7 @@
 package com.projectoverseer.world;
 
+import com.badlogic.gdx.utils.LongMap;
+import com.badlogic.gdx.utils.TimeUtils;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
@@ -9,6 +11,7 @@ import com.projectoverseer.entities.Player;
 import com.projectoverseer.shared.world.Chunk;
 import com.projectoverseer.shared.world.ResourceType;
 import com.projectoverseer.shared.world.WorldResource;
+
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -20,6 +23,9 @@ public final class WorldObjectRenderer implements Disposable {
     private final List<DrawEntry> entries = new ArrayList<>();
     private final TextureRegion tree;
     private final TextureRegion[] rocks;
+    private static final float TREE_SHAKE_DURATION = 0.18f;
+    private static final float TREE_SHAKE_OFFSET = 2f;
+    private final LongMap<Long> shakingTrees = new LongMap<>();
 
     public WorldObjectRenderer() {
         try {
@@ -58,7 +64,22 @@ public final class WorldObjectRenderer implements Disposable {
                 if (!placement.intersects(view)) continue;
                 TextureRegion region = resource.type() == ResourceType.TREE ? tree
                     : rocks[ResourceAppearance.rockVariant(resource.tileX(), resource.tileY())];
-                entries.add(new DrawEntry(placement.groundY(), placement.x(), region, placement, null));
+
+
+                float drawX = placement.x();
+
+                drawX += getResourceShakeX(
+                    resource.tileX(),
+                    resource.tileY()
+                );
+
+                entries.add(new DrawEntry(
+                    placement.groundY(),
+                    drawX,
+                    region,
+                    placement,
+                    null
+                ));
             }
         }
         addPlayer(localPlayer);
@@ -70,7 +91,14 @@ public final class WorldObjectRenderer implements Disposable {
                 entry.player().render(batch);
             } else {
                 ResourceAppearance.Placement p = entry.placement();
-                batch.draw(entry.region(), p.x(), p.y(), p.width(), p.height());
+                batch.draw(
+                    entry.region(),
+                    entry.x(),
+                    p.y(),
+                    p.width(),
+                    p.height()
+                );
+
             }
         }
         entries.clear();
@@ -79,6 +107,77 @@ public final class WorldObjectRenderer implements Disposable {
     private void addPlayer(Player player) {
         // Player sprites are drawn from their bottom-left; Y is the feet baseline.
         entries.add(new DrawEntry(player.getY(), player.getX(), null, null, player));
+    }
+
+
+    public WorldResource findResourceAt(
+        Iterable<Chunk> chunks,
+        float worldX,
+        float worldY
+    ) {
+        WorldResource selected = null;
+        float selectedGroundY = Float.POSITIVE_INFINITY;
+        float selectedX = Float.NEGATIVE_INFINITY;
+
+        for (Chunk chunk : chunks) {
+            for (WorldResource resource : chunk.getResources()) {
+
+                ResourceAppearance.Placement placement =
+                    ResourceAppearance.placement(resource);
+
+                boolean inside =
+                    worldX >= placement.x()
+                        && worldX <= placement.x() + placement.width()
+                        && worldY >= placement.y()
+                        && worldY <= placement.y() + placement.height();
+
+                if (!inside) {
+                    continue;
+                }
+
+                // Alegem obiectul desenat deasupra celorlalte
+                if (placement.groundY() < selectedGroundY
+                    || (placement.groundY() == selectedGroundY
+                    && placement.x() > selectedX)) {
+
+                    selected = resource;
+                    selectedGroundY = placement.groundY();
+                    selectedX = placement.x();
+                }
+            }
+        }
+
+        return selected;
+    }
+
+    private static long treeKey(int tileX, int tileY) {
+        return ((long) tileX << 32)
+            | (tileY & 0xFFFFFFFFL);
+    }
+
+    private float getResourceShakeX(int tileX, int tileY) {
+        long key = treeKey(tileX, tileY);
+        Long endTime = shakingTrees.get(key);
+        if (endTime == null) {
+            return 0f;
+        }
+        long now = TimeUtils.nanoTime();
+        if (now >= endTime) {
+            shakingTrees.remove(key);
+            return 0f;
+        }
+        long phase = (now / 30_000_000L) % 2L;
+        return phase == 0L
+            ? -TREE_SHAKE_OFFSET
+            : TREE_SHAKE_OFFSET;
+    }
+
+    public void triggerResourceShake(int tileX, int tileY) {
+        long key = treeKey(tileX, tileY);
+        long endTime = TimeUtils.nanoTime()
+            + (long) (TREE_SHAKE_DURATION * 1_000_000_000L);
+
+        shakingTrees.put(key, endTime);
     }
 
     @Override
