@@ -35,7 +35,7 @@ public class ServerLauncher {
     private static float timeTimer = 0;
     private static float dayLengthSeconds = 10;
     private static float nightThreshold = 0.7f;
-    private static int winThreshold = 5;
+    private static int winThreshold = 30;
     private static boolean gameStarted = false;
 
     // Internal timers
