@@ -11,9 +11,11 @@ import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.utils.ScreenUtils;
 import com.badlogic.gdx.utils.Timer;
 import com.badlogic.gdx.utils.viewport.FitViewport;
+
 import com.esotericsoftware.kryonet.Client;
 import com.esotericsoftware.kryonet.Connection;
 import com.esotericsoftware.kryonet.Listener;
+
 import com.projectoverseer.entities.Player;
 import com.projectoverseer.environment.DayNightRenderer;
 import com.projectoverseer.gameplay.Inventory;
@@ -25,6 +27,7 @@ import com.projectoverseer.shared.world.ChunkManager;
 import com.projectoverseer.shared.world.ResourceType;
 import com.projectoverseer.shared.world.WorldResource;
 import com.projectoverseer.shared.world.generation.WorldGenerator;
+import com.projectoverseer.ui.CraftingMenu;
 import com.projectoverseer.ui.GameHUD;
 import com.projectoverseer.ui.MainMenu;
 import com.projectoverseer.world.TileRenderer;
@@ -32,6 +35,7 @@ import com.projectoverseer.world.WorldObjectRenderer;
 
 import java.io.IOException;
 import java.util.*;
+
 
 /** {@link com.badlogic.gdx.ApplicationListener} implementation shared by all platforms. */
 public class Main extends ApplicationAdapter {
@@ -67,6 +71,7 @@ public class Main extends ApplicationAdapter {
     private List<Chunk> chunks;
 
     private GameHUD hud;
+    private CraftingMenu craftingMenu;
 
     private volatile boolean isConnected;
     private volatile int playerId = -1;
@@ -92,6 +97,15 @@ public class Main extends ApplicationAdapter {
         hud = new GameHUD(
             player.getStats(),
             player.getInventory()
+        );
+        craftingMenu = new CraftingMenu(
+            hud.getStage(),
+            player.getInventory(),
+            itemId -> {
+                if (isConnected && gameState == GameState.PLAYING) {
+                    client.sendTCP(new CraftRequest(itemId));
+                }
+            }
         );
 
         menu = new MainMenu(this::connectToServer);
@@ -153,11 +167,6 @@ public class Main extends ApplicationAdapter {
                     Gdx.app.postRunnable(() -> {
                         removeTreeFromWorld(tileX, tileY);
                     });
-                } else if (object instanceof WoodCountSync sync) {
-                    int totalWood = sync.totalWood;
-                    Gdx.app.postRunnable(() -> {
-                        updateWoodInventory(totalWood);
-                    });
                 }
                 else if (object instanceof TreeHit hit) {
 
@@ -187,14 +196,62 @@ public class Main extends ApplicationAdapter {
                         );
                     });
 
-                } else if (object instanceof StoneCountSync sync) {
+                }
+                else if (object instanceof InventorySync sync) {
 
-                    int totalStone = sync.totalStone;
+                    if (sync.itemIds == null
+                        || sync.quantities == null
+                        || sync.itemIds.length != Inventory.SLOT_COUNT
+                        || sync.quantities.length != Inventory.SLOT_COUNT) {
+                        return;
+                    }
+
+                    ItemStack[] slots = new ItemStack[Inventory.SLOT_COUNT];
+
+                    try {
+                        for (int i = 0; i < Inventory.SLOT_COUNT; i++) {
+                            String itemId = sync.itemIds[i];
+                            int quantity = sync.quantities[i];
+
+                            if (itemId == null) {
+                                if (quantity != 0) {
+                                    return;
+                                }
+                            } else {
+                                slots[i] = new ItemStack(itemId, quantity);
+                            }
+                        }
+                    } catch (IllegalArgumentException e) {
+                        return;
+                    }
 
                     Gdx.app.postRunnable(() -> {
-                        updateStoneInventory(totalStone);
+                        if (!connection.isConnected()) {
+                            return;
+                        }
+
+                        Inventory inventory = player.getInventory();
+
+                        for (int i = 0; i < Inventory.SLOT_COUNT; i++) {
+                            inventory.setSlot(i, slots[i]);
+                        }
+                        craftingMenu.refresh();
                     });
                 }
+
+                else if (object instanceof CraftResult result) {
+                    if (result.success) {
+                        System.out.println(
+                            "CLIENT: Crafted " + result.itemId
+                        );
+                    } else {
+                        System.out.println(
+                            "CLIENT: Craft failed for " + result.itemId
+                        );
+                    }
+                }
+
+
 
             }
 
@@ -262,7 +319,10 @@ public class Main extends ApplicationAdapter {
     }
 
     private void showMenu(String status) {
-        if (welcomeTimeout != null) welcomeTimeout.cancel();
+        if (craftingMenu != null) {
+            welcomeTimeout.cancel();
+            craftingMenu.hide();
+        }
         isConnected = false;
         gameState = GameState.MENU;
         menu.show(status);
@@ -302,9 +362,9 @@ public class Main extends ApplicationAdapter {
 
 
     private void handleResourcePunch() {
-
         if (gameState != GameState.PLAYING
             || !isConnected
+            || craftingMenu.isOpen()
             || !Gdx.input.isButtonJustPressed(Input.Buttons.LEFT)) {
             return;
         }
@@ -359,14 +419,16 @@ public class Main extends ApplicationAdapter {
 
             client.sendTCP(new PunchTree(
                 resource.tileX(),
-                resource.tileY()
+                resource.tileY(),
+                player.getInventory().getSelectedSlot()
             ));
 
         } else if (resource.type() == ResourceType.ROCK) {
 
             client.sendTCP(new PunchRock(
                 resource.tileX(),
-                resource.tileY()
+                resource.tileY(),
+                player.getInventory().getSelectedSlot()
             ));
         }
     }
@@ -383,6 +445,9 @@ public class Main extends ApplicationAdapter {
             ScreenUtils.clear(0.1f, 0.4f, 0.1f, 1f);
             dayNightRenderer.renderVictoryScreen(camera, batch);
             return;
+        }
+        if (Gdx.input.isKeyJustPressed(Input.Keys.C)) {
+            craftingMenu.toggle();
         }
 
         player.update();
@@ -471,6 +536,7 @@ public class Main extends ApplicationAdapter {
     }
 
     private void removeTreeFromWorld(int tileX, int tileY) {
+        destroyedResources.add(resourceKey(tileX, tileY));
         int chunkX = Chunk.chunkCoordinate(tileX);
         int chunkY = Chunk.chunkCoordinate(tileY);
         for (Chunk chunk : chunks) {
@@ -486,34 +552,12 @@ public class Main extends ApplicationAdapter {
                 && resource.type() == ResourceType.TREE) {
                 chunk.removeResource(localX, localY);
             }
-            destroyedResources.add(resourceKey(tileX, tileY));
             return;
         }
     }
 
-    private void updateWoodInventory(int totalWood) {
-        Inventory inventory = player.getInventory();
-        inventory.removeItem(
-            "wood",
-            Inventory.SLOT_COUNT * ItemStack.MAX_STACK_SIZE
-        );
-        if (totalWood > 0) {
-            int remaining = inventory.addItem(
-                "wood",
-                totalWood
-            );
-            if (remaining > 0) {
-                System.err.println(
-                    "CLIENT: Not enough inventory space for "
-                        + remaining + " wood"
-                );
-            }
-        }
-    }
-
-
     private void removeRockFromWorld(int tileX, int tileY) {
-
+        destroyedResources.add(resourceKey(tileX, tileY));
         int chunkX = Chunk.chunkCoordinate(tileX);
         int chunkY = Chunk.chunkCoordinate(tileY);
 
@@ -535,37 +579,9 @@ public class Main extends ApplicationAdapter {
 
                 chunk.removeResource(localX, localY);
             }
-            destroyedResources.add(resourceKey(tileX, tileY));
             return;
         }
     }
-
-
-    private void updateStoneInventory(int totalStone) {
-
-        Inventory inventory = player.getInventory();
-
-        inventory.removeItem(
-            "stone",
-            Inventory.SLOT_COUNT * ItemStack.MAX_STACK_SIZE
-        );
-
-        if (totalStone > 0) {
-
-            int remaining = inventory.addItem(
-                "stone",
-                totalStone
-            );
-
-            if (remaining > 0) {
-                System.err.println(
-                    "CLIENT: Not enough space for "
-                        + remaining + " stone"
-                );
-            }
-        }
-    }
-
 
     @Override
     public void dispose() {
@@ -580,6 +596,7 @@ public class Main extends ApplicationAdapter {
         if (tileRenderer != null) tileRenderer.dispose();
         if (worldObjectRenderer != null) worldObjectRenderer.dispose();
         if (dayNightRenderer != null) dayNightRenderer.dispose();
+        if (craftingMenu != null) craftingMenu.dispose();
         if (hud != null) hud.dispose();
     }
 

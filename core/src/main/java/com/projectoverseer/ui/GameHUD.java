@@ -1,9 +1,5 @@
 package com.projectoverseer.ui;
 
-import com.badlogic.gdx.files.FileHandle;
-import com.badlogic.gdx.graphics.Pixmap.Blending;
-import com.badlogic.gdx.scenes.scene2d.ui.Stack;
-
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.graphics.Color;
@@ -15,18 +11,19 @@ import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.Image;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
+import com.badlogic.gdx.scenes.scene2d.ui.Stack;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 import com.badlogic.gdx.utils.Disposable;
 import com.badlogic.gdx.utils.viewport.FitViewport;
-
 import com.projectoverseer.gameplay.Inventory;
 import com.projectoverseer.gameplay.ItemStack;
 import com.projectoverseer.gameplay.PlayerStats;
 
 public final class GameHUD implements Disposable {
+
 
     private static final int ICON_COUNT = 10;
     private static final int ICON_SIZE = 13;
@@ -46,6 +43,15 @@ public final class GameHUD implements Disposable {
 
     private Texture stoneTexture;
     private Drawable stoneDrawable;
+
+    private Texture axeTexture;
+    private Texture pickaxeTexture;
+    private Texture daggerTexture;
+
+    private Drawable axeDrawable;
+    private Drawable pickaxeDrawable;
+    private Drawable daggerDrawable;
+
 
 
     private static final int[] NUMBER_KEYS = {
@@ -145,6 +151,39 @@ public final class GameHUD implements Disposable {
             Texture.TextureFilter.Nearest
         );
 
+        axeTexture = new Texture(
+            Gdx.files.internal("ui/items/axe.png")
+        );
+        axeTexture.setFilter(
+            Texture.TextureFilter.Nearest,
+            Texture.TextureFilter.Nearest
+        );
+        axeDrawable = new TextureRegionDrawable(
+            new TextureRegion(axeTexture)
+        );
+
+        pickaxeTexture = new Texture(
+            Gdx.files.internal("ui/items/pickaxe.png")
+        );
+        pickaxeTexture.setFilter(
+            Texture.TextureFilter.Nearest,
+            Texture.TextureFilter.Nearest
+        );
+        pickaxeDrawable = new TextureRegionDrawable(
+            new TextureRegion(pickaxeTexture)
+        );
+
+        daggerTexture = new Texture(
+            Gdx.files.internal("ui/items/dagger.png")
+        );
+        daggerTexture.setFilter(
+            Texture.TextureFilter.Nearest,
+            Texture.TextureFilter.Nearest
+        );
+        daggerDrawable = new TextureRegionDrawable(
+            new TextureRegion(daggerTexture)
+        );
+
         stoneDrawable = new TextureRegionDrawable(
             new TextureRegion(stoneTexture)
         );
@@ -191,6 +230,7 @@ public final class GameHUD implements Disposable {
 
             Table slot = new Table();
             slot.setBackground(normalSlot);
+            slot.top();
             slotTables[i] = slot;
 
             Label number = new Label(
@@ -259,10 +299,12 @@ public final class GameHUD implements Disposable {
             .row();
 
         content.add(hotbarRow);
+
         Table anchor = new Table();
         anchor.setFillParent(true);
         anchor.bottom();
         anchor.add(content).padBottom(30);
+
         stage.addActor(anchor);
 
         refresh();
@@ -389,6 +431,7 @@ public final class GameHUD implements Disposable {
                 }
 
 
+
                 if ("wood".equals(item.itemId())) {
 
                     itemImages[i].setDrawable(woodDrawable);
@@ -398,6 +441,24 @@ public final class GameHUD implements Disposable {
                 } else if ("stone".equals(item.itemId())) {
 
                     itemImages[i].setDrawable(stoneDrawable);
+                    itemImages[i].setVisible(true);
+                    itemLabels[i].setText("");
+
+                } else if ("axe".equals(item.itemId())) {
+
+                    itemImages[i].setDrawable(axeDrawable);
+                    itemImages[i].setVisible(true);
+                    itemLabels[i].setText("");
+
+                } else if ("pickaxe".equals(item.itemId())) {
+
+                    itemImages[i].setDrawable(pickaxeDrawable);
+                    itemImages[i].setVisible(true);
+                    itemLabels[i].setText("");
+
+                } else if ("sword".equals(item.itemId())) {
+
+                    itemImages[i].setDrawable(daggerDrawable);
                     itemImages[i].setVisible(true);
                     itemLabels[i].setText("");
 
@@ -413,6 +474,7 @@ public final class GameHUD implements Disposable {
                             : name
                     );
                 }
+
 
 
                 quantityLabels[i].setText(
@@ -488,6 +550,10 @@ public final class GameHUD implements Disposable {
         if (stoneTexture != null) {
             stoneTexture.dispose();
         }
+
+        axeTexture.dispose();
+        pickaxeTexture.dispose();
+        daggerTexture.dispose();
 
     }
 

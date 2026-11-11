@@ -3,35 +3,23 @@ package com.projectoverseer.server;
 import com.esotericsoftware.kryonet.Connection;
 import com.esotericsoftware.kryonet.Listener;
 import com.esotericsoftware.kryonet.Server;
+
+import com.projectoverseer.gameplay.Inventory;
+import com.projectoverseer.gameplay.ItemStack;
 import com.projectoverseer.shared.Network;
-import com.projectoverseer.shared.Network.Ping;
-import com.projectoverseer.shared.Network.PlayerLeft;
-import com.projectoverseer.shared.Network.PlayerPosition;
-import com.projectoverseer.shared.Network.PositionUpdate;
-import com.projectoverseer.shared.Network.Welcome;
-import com.projectoverseer.shared.Network.TimeSync;
-import com.projectoverseer.shared.Network.GameEnd;
-import com.projectoverseer.shared.Network.TreeHit;
-
-import com.projectoverseer.shared.Network.PunchRock;
-import com.projectoverseer.shared.Network.RockHit;
-import com.projectoverseer.shared.Network.RockRemoved;
-import com.projectoverseer.shared.Network.StoneCountSync;
-import com.projectoverseer.shared.Network.PunchTree;
-import com.projectoverseer.shared.Network.TreeRemoved;
-import com.projectoverseer.shared.Network.WoodCountSync;
-
+import com.projectoverseer.shared.Network.*;
+import com.projectoverseer.shared.crafting.CraftingRecipe;
+import com.projectoverseer.shared.world.Chunk;
 import com.projectoverseer.shared.world.ResourceType;
 import com.projectoverseer.shared.world.WorldResource;
-
-import java.util.ArrayList;
+import com.projectoverseer.shared.world.generation.WorldGenerator;
+import com.projectoverseer.shared.world.ResourceGatheringRules;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Map;
 import java.util.List;
-import com.projectoverseer.shared.world.Chunk;
-import com.projectoverseer.shared.world.generation.WorldGenerator;
+import java.util.Map;
 
 /** Launches the server application. */
 public class ServerLauncher {
@@ -47,20 +35,22 @@ public class ServerLauncher {
     private static float timeTimer = 0;
     private static float dayLengthSeconds = 10;
     private static float nightThreshold = 0.7f;
-    private static int winThreshold = 5;
+    private static int winThreshold = 30;
     private static boolean gameStarted = false;
 
     // Internal timers
     private static float syncTimer = 0f;
     private static long lastTime;
 
-    private static final int TREE_HITS_REQUIRED = 6;
+    private static final int TREE_HITS_REQUIRED =
+        ResourceGatheringRules.damageRequired(ResourceType.TREE);
+    private static final int ROCK_HITS_REQUIRED =
+        ResourceGatheringRules.damageRequired(ResourceType.ROCK);
     private static final float TILE_SIZE = 32f;
     private static final float PUNCH_RANGE = 64f;
 
     private static final long PUNCH_COOLDOWN_NS = 250_000_000L;
 
-    private static final int MAX_WOOD = 9 * 64;
 
 
     public static void main(String[] args) throws IOException {
@@ -74,15 +64,14 @@ public class ServerLauncher {
         server.bind(Network.TCP_PORT, Network.UDP_PORT);
 
         Map<Integer, PlayerPosition> players = new HashMap<>();
+        Map<Integer, Inventory> playerInventories = new HashMap<>();
 
         Map<Long, Integer> treeHits = new HashMap<>();
-        Map<Integer, Integer> playerWood = new HashMap<>();
         Map<Integer, Long> lastPunchTime = new HashMap<>();
         List<TreeRemoved> destroyedTrees = new ArrayList<>();
 
 
         Map<Long, Integer> rockHits = new HashMap<>();
-        Map<Integer, Integer> playerStone = new HashMap<>();
         List<RockRemoved> destroyedRocks = new ArrayList<>();
 
 
@@ -102,6 +91,16 @@ public class ServerLauncher {
                 welcome.generatorVersion = WorldGenerator.VERSION;
                 connection.sendTCP(welcome);
 
+                int playerId = connection.getID();
+                playerInventories.put(
+                    playerId,
+                    new Inventory()
+                );
+
+                sendInventorySync(
+                    connection,
+                    playerInventories.get(playerId)
+                );
                 for (PlayerPosition player : players.values()) {
                     connection.sendTCP(player);
                 }
@@ -111,17 +110,10 @@ public class ServerLauncher {
                 for (TreeRemoved removed : destroyedTrees) {
                     connection.sendTCP(removed);
                 }
-                WoodCountSync woodSync = new WoodCountSync();
-                woodSync.totalWood = 0;
-                connection.sendTCP(woodSync);
 
                 for (RockRemoved removed : destroyedRocks) {
                     connection.sendTCP(removed);
                 }
-                StoneCountSync stoneSync = new StoneCountSync();
-                stoneSync.totalStone = 0;
-                connection.sendTCP(stoneSync);
-
             }
 
             @Override
@@ -171,11 +163,18 @@ public class ServerLauncher {
                         && now - lastPunch < PUNCH_COOLDOWN_NS) {
                         return;
                     }
-                    int wood = playerWood.getOrDefault(playerId, 0);
+                    Inventory inventory = playerInventories.get(playerId);
 
-                    int stone = playerStone.getOrDefault(playerId, 0);
+                    if (inventory == null || !hasRoomFor(inventory, "wood")) {
+                        return;
+                    }
+                    int damage = ResourceGatheringRules.hitDamage(
+                        ResourceType.TREE,
+                        inventory,
+                        punch.selectedSlot
+                    );
 
-                    if (!hasInventorySpace(wood + 1, stone)) {
+                    if (damage == 0) {
                         return;
                     }
 
@@ -183,7 +182,9 @@ public class ServerLauncher {
                     long treeId =
                         ((long) punch.tileX << 32)
                             | (punch.tileY & 0xFFFFFFFFL);
-                    int hits = treeHits.getOrDefault(treeId, 0) + 1;
+
+                    int hits = treeHits.getOrDefault(treeId, 0) + damage;
+
                     TreeHit hitMessage = new TreeHit(
                         punch.tileX,
                         punch.tileY,
@@ -198,13 +199,12 @@ public class ServerLauncher {
                         );
                         return;
                     }
+                    if (inventory.addItem("wood", 1) != 0) {
+                        return;
+                    }
                     treeHits.remove(treeId);
                     chunk.removeResource(localX, localY);
-                    wood++;
-                    playerWood.put(playerId, wood);
-                    WoodCountSync woodSync = new WoodCountSync();
-                    woodSync.totalWood = wood;
-                    connection.sendTCP(woodSync);
+                    sendInventorySync(connection, inventory);
                     TreeRemoved removed = new TreeRemoved();
                     removed.tileX = punch.tileX;
                     removed.tileY = punch.tileY;
@@ -265,10 +265,19 @@ public class ServerLauncher {
                         return;
                     }
 
-                    int wood = playerWood.getOrDefault(playerId, 0);
-                    int stone = playerStone.getOrDefault(playerId, 0);
+                    Inventory inventory = playerInventories.get(playerId);
 
-                    if (!hasInventorySpace(wood, stone + 1)) {
+                    if (inventory == null || !hasRoomFor(inventory, "stone")) {
+                        return;
+                    }
+
+                    int damage = ResourceGatheringRules.hitDamage(
+                        ResourceType.ROCK,
+                        inventory,
+                        punch.selectedSlot
+                    );
+
+                    if (damage == 0) {
                         return;
                     }
 
@@ -277,7 +286,8 @@ public class ServerLauncher {
                         ((long) punch.tileX << 32)
                             | (punch.tileY & 0xFFFFFFFFL);
 
-                    int hits = rockHits.getOrDefault(rockId, 0) + 1;
+                    int hits = rockHits.getOrDefault(rockId, 0) + damage;
+
                     RockHit hitMessage = new RockHit(
                         punch.tileX,
                         punch.tileY,
@@ -285,25 +295,22 @@ public class ServerLauncher {
                     );
 
                     server.sendToAllTCP(hitMessage);
-                    if (hits < TREE_HITS_REQUIRED) {
+                    if (hits < ROCK_HITS_REQUIRED) {
                         rockHits.put(rockId, hits);
 
                         System.out.println(
-                            "SERVER: Rock hit " + hits + "/3"
+                            "SERVER: Rock hit " + hits + "/7"
                         );
                         return;
                     }
 
+                    if (inventory.addItem("stone", 1) != 0) {
+                        return;
+                    }
                     rockHits.remove(rockId);
                     chunk.removeResource(localX, localY);
 
-                    stone++;
-                    playerStone.put(playerId, stone);
-
-                    StoneCountSync stoneSync = new StoneCountSync();
-                    stoneSync.totalStone = stone;
-
-                    connection.sendTCP(stoneSync);
+                    sendInventorySync(connection, inventory);
 
                     RockRemoved removed = new RockRemoved();
                     removed.tileX = punch.tileX;
@@ -317,6 +324,35 @@ public class ServerLauncher {
                             + " destroyed rock at "
                             + punch.tileX + ", " + punch.tileY
                     );
+                }
+                else if (object instanceof CraftRequest request) {
+
+                    int playerId = connection.getID();
+
+                    Inventory inventory = playerInventories.get(playerId);
+
+                    CraftingRecipe recipe =
+                        CraftingRecipe.fromId(request.itemId);
+
+                    boolean success = inventory != null
+                        && recipe != null
+                        && inventory.tryCraft(recipe);
+
+                    CraftResult result = new CraftResult(
+                        request.itemId,
+                        success
+                    );
+
+                    connection.sendTCP(result);
+
+                    if (success) {
+                        sendInventorySync(connection, inventory);
+
+                        System.out.println(
+                            "SERVER: Player " + playerId
+                                + " crafted " + request.itemId
+                        );
+                    }
                 }
 
             }
@@ -338,12 +374,9 @@ public class ServerLauncher {
                     System.out.println("SERVER: All players disconnected. Game stopped.");
                 }
 
-                for (Connection recipient : server.getConnections()) recipient.sendTCP(left);
-
-                playerWood.remove(connection.getID());
                 lastPunchTime.remove(connection.getID());
 
-                playerStone.remove(connection.getID());
+                playerInventories.remove(connection.getID());
 
                 System.out.println("SERVER: Player " + connection.getID() + " disconnected.");
             }
@@ -371,14 +404,47 @@ public class ServerLauncher {
         }
     }
 
-    private static boolean hasInventorySpace(
-        int wood,
-        int stone
+    private static void sendInventorySync(
+        Connection connection,
+        Inventory inventory
     ) {
-        int woodSlots = (wood + 63) / 64;
-        int stoneSlots = (stone + 63) / 64;
+        InventorySync sync = new InventorySync();
 
-        return woodSlots + stoneSlots <= 9;
+        sync.itemIds = new String[Inventory.SLOT_COUNT];
+        sync.quantities = new int[Inventory.SLOT_COUNT];
+
+        for (int i = 0; i < Inventory.SLOT_COUNT; i++) {
+
+            ItemStack stack = inventory.getSlot(i);
+
+            if (stack != null) {
+                sync.itemIds[i] = stack.itemId();
+                sync.quantities[i] = stack.quantity();
+            }
+        }
+
+        connection.sendTCP(sync);
+    }
+
+
+    private static boolean hasRoomFor(
+        Inventory inventory,
+        String itemId
+    ) {
+        int maxStack = ItemStack.maxStackSize(itemId);
+
+        for (int i = 0; i < Inventory.SLOT_COUNT; i++) {
+            ItemStack stack = inventory.getSlot(i);
+            if (stack == null) {
+                return true;
+            }
+            if (stack.itemId().equals(itemId)
+                && stack.quantity() < maxStack) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public static void update(float delta, Server server) {
