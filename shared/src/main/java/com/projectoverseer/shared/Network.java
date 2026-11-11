@@ -49,14 +49,18 @@ public class Network {
 
         kryo.register(PunchTree.class);
         kryo.register(TreeRemoved.class);
-        kryo.register(WoodCountSync.class);
         kryo.register(TreeHit.class);
 
         kryo.register(PunchRock.class);
         kryo.register(RockHit.class);
         kryo.register(RockRemoved.class);
-        kryo.register(StoneCountSync.class);
 
+        kryo.register(String[].class);
+        kryo.register(int[].class);
+        kryo.register(InventorySync.class);
+
+        kryo.register(CraftRequest.class);
+        kryo.register(CraftResult.class);
 
     }
 
@@ -128,12 +132,14 @@ public class Network {
     public static class PunchTree {
         public int tileX;
         public int tileY;
+        public int selectedSlot;
 
         public PunchTree() {}
 
-        public PunchTree(int tileX, int tileY) {
+        public PunchTree(int tileX, int tileY,int selectedSlot) {
             this.tileX = tileX;
             this.tileY = tileY;
+            this.selectedSlot = selectedSlot;
         }
     }
 
@@ -149,15 +155,6 @@ public class Network {
         }
     }
 
-    public static class WoodCountSync {
-        public int totalWood;
-
-        public WoodCountSync() {}
-
-        public WoodCountSync(int totalWood) {
-            this.totalWood = totalWood;
-        }
-    }
     public static class TreeHit {
         public int tileX;
         public int tileY;
@@ -175,12 +172,14 @@ public class Network {
     public static class PunchRock {
         public int tileX;
         public int tileY;
+        public int selectedSlot;
 
         public PunchRock() {}
 
-        public PunchRock(int tileX, int tileY) {
+        public PunchRock(int tileX, int tileY, int selectedSlot) {
             this.tileX = tileX;
             this.tileY = tileY;
+            this.selectedSlot = selectedSlot;
         }
     }
 
@@ -210,14 +209,40 @@ public class Network {
         }
     }
 
-    public static class StoneCountSync {
-        public int totalStone;
+    public static class InventorySync {
 
-        public StoneCountSync() {}
+        public String[] itemIds;
+        public int[] quantities;
 
-        public StoneCountSync(int totalStone) {
-            this.totalStone = totalStone;
+        public InventorySync() {
         }
     }
+
+
+    public static class CraftRequest {
+        public String itemId;
+
+        public CraftRequest() {
+        }
+
+        public CraftRequest(String itemId) {
+            this.itemId = itemId;
+        }
+    }
+
+    public static class CraftResult {
+        public String itemId;
+        public boolean success;
+
+        public CraftResult() {
+        }
+
+        public CraftResult(String itemId, boolean success) {
+            this.itemId = itemId;
+            this.success = success;
+        }
+    }
+
+
 
 }
