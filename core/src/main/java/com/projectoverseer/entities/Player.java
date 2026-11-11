@@ -10,7 +10,8 @@ import com.badlogic.gdx.math.Vector2;
 
 import com.projectoverseer.gameplay.PlayerStats;
 import com.projectoverseer.gameplay.Inventory;
-
+import java.util.List;
+import com.projectoverseer.shared.world.Chunk;
 
 public class Player {
     public static final int DOWN = 0;
@@ -26,8 +27,8 @@ public class Player {
     private final PlayerStats stats = new PlayerStats();
     private final Inventory inventory = new Inventory();
 
-    private float x = 400;
-    private float y = 300;
+    private float x = 200;
+    private float y = 200;
     private float speed = 100;
     private final Vector2 movement = new Vector2();
     private final boolean localPlayer;
@@ -48,23 +49,30 @@ public class Player {
 
     public Player(boolean localPlayer) {
         this.localPlayer = localPlayer;
-        spriteSheet = new Texture("player.png");
+        if (Gdx.app != null) {
+            spriteSheet = new Texture("player.png");
 
-        TextureRegion[][] frames = TextureRegion.split(spriteSheet,
-            spriteSheet.getWidth() / 6,
-            spriteSheet.getHeight() / 16);
+            TextureRegion[][] frames = TextureRegion.split(spriteSheet,
+                spriteSheet.getWidth() / 6,
+                spriteSheet.getHeight() / 16);
 
-        walkUp = new Animation<>(0.1f, frames[12]);
-        walkLeft = new Animation<>(0.1f, frames[14]);
-        walkDown = new Animation<>(0.1f, frames[8]);
-        walkRight = new Animation<>(0.1f, frames[10]);
+            walkUp = new Animation<>(0.1f, frames[12]);
+            walkLeft = new Animation<>(0.1f, frames[14]);
+            walkDown = new Animation<>(0.1f, frames[8]);
+            walkRight = new Animation<>(0.1f, frames[10]);
 
-        walkUpLeft = new Animation<>(0.1f, frames[13]);
-        walkUpRight = new Animation<>(0.1f, frames[11]);
-        walkDownLeft = new Animation<>(0.1f, frames[15]);
-        walkDownRight = new Animation<>(0.1f, frames[9]);
+            walkUpLeft = new Animation<>(0.1f, frames[13]);
+            walkUpRight = new Animation<>(0.1f, frames[11]);
+            walkDownLeft = new Animation<>(0.1f, frames[15]);
+            walkDownRight = new Animation<>(0.1f, frames[9]);
 
-        currentAnimation = walkDown;
+            currentAnimation = walkDown;
+        } else {
+            // for testing
+            walkUp = walkLeft = walkDown = walkRight = walkUpLeft = walkUpRight = walkDownLeft = walkDownRight = null;
+            currentAnimation = null;
+        }
+
     }
 
 
@@ -76,7 +84,7 @@ public class Player {
         return inventory;
     }
 
-    public void update() {
+    public void update(List<Chunk> chunks) {
         if (!localPlayer) {
             stateTime = moving ? stateTime + Gdx.graphics.getDeltaTime() : 0f;
             return;
@@ -138,9 +146,12 @@ public class Player {
         }
 
         movement.scl(speed * Gdx.graphics.getDeltaTime());
-
-        x += movement.x;
-        y += movement.y;
+        if (movement.x != 0 && canMoveTo(x + movement.x, y, chunks)) {
+            x += movement.x;
+        }
+        if (movement.y != 0 && canMoveTo(x, y + movement.y, chunks)) {
+            y += movement.y;
+        }
     }
 
     public void render(SpriteBatch batch) {
@@ -169,6 +180,38 @@ public class Player {
         }
         if (this.moving != moving) stateTime = 0f;
         this.moving = moving;
+    }
+
+    //// Checks if a specific point in the world coordinates is valid (free of water, rocks, or trees).
+    private boolean isWalkable(float worldX, float worldY, List<Chunk> chunks) {
+        int tileSize = 32;
+        int globalTileX = (int) Math.floor(worldX / tileSize);
+        int globalTileY = (int) Math.floor(worldY / tileSize);
+
+        int chunkX = Chunk.chunkCoordinate(globalTileX);
+        int chunkY = Chunk.chunkCoordinate(globalTileY);
+
+        for (Chunk chunk : chunks) {
+            if (chunk.getChunkX() == chunkX && chunk.getChunkY() == chunkY) {
+                int localX = Chunk.localCoordinate(globalTileX);
+                int localY = Chunk.localCoordinate(globalTileY);
+                return chunk.isWalkable(localX, localY);
+            }
+        }
+        return false;
+    }
+
+    //// Checks if the player's entire Axis-Aligned Bounding Box (AABB) fits at the target coordinates.
+    private boolean canMoveTo(float newX, float newY, List<Chunk> chunks) {
+        float hitboxWidth = 12f;
+        float hitboxHeight = 6f;
+        float offsetX = 10f;
+        float offsetY = 0f;
+
+        return isWalkable(newX + offsetX, newY + offsetY, chunks) &&
+            isWalkable(newX + offsetX + hitboxWidth, newY + offsetY, chunks) &&
+            isWalkable(newX + offsetX, newY + offsetY + hitboxHeight, chunks) &&
+            isWalkable(newX + offsetX + hitboxWidth, newY + offsetY + hitboxHeight, chunks);
     }
 
     public void dispose() {
