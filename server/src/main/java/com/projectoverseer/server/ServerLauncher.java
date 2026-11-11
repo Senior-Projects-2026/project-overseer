@@ -9,6 +9,7 @@ import com.projectoverseer.server.combat.AttackValidator;
 import com.projectoverseer.server.combat.CombatPlayer;
 import com.projectoverseer.server.combat.CombatSystem;
 import com.projectoverseer.server.combat.CombatTarget;
+import com.projectoverseer.server.combat.Knockback;
 import com.projectoverseer.shared.combat.CombatConfig;
 import com.projectoverseer.gameplay.ItemStack;
 import com.projectoverseer.shared.Network;
@@ -141,10 +142,11 @@ public class ServerLauncher {
                     connection.sendTCP(response);
                 } else if (object instanceof PositionUpdate) {
                     PositionUpdate update = (PositionUpdate) object;
-                    if (!combatPlayer.updatePosition(update.x, update.y)) return;
+                    if (!combatPlayer.updatePosition(update.x, update.y, update.movementRevision)) return;
                     PlayerPosition position = new PlayerPosition(
                         connection.getID(), update.x, update.y, update.direction, update.moving);
                     players.put(connection.getID(), position);
+                    position.movementRevision = combatPlayer.movementRevision();
                     for (Connection recipient : server.getConnections()) {
                         if (recipient.getID() != connection.getID()) recipient.sendUDP(position);
                     }
@@ -166,9 +168,21 @@ public class ServerLauncher {
                     accepted.directionY = swing.directionY();
                     server.sendToAllTCP(accepted);
                     for (CombatTarget target : combat.resolve(combatPlayer.combatId(), swing)) {
+                        Knockback.apply(target, swing.directionX(), swing.directionY(), swing.stats().knockback(),
+                            (tileX, tileY) -> {
+                                Chunk chunk = findChunk(tileX, tileY);
+                                return chunk != null && chunk.isWalkable(Chunk.localCoordinate(tileX), Chunk.localCoordinate(tileY));
+                            });
                         System.out.println("SERVER: " + combatPlayer.combatId() + " hit "
                             + target.combatId() + " for " + swing.stats().damage());
                         if (target instanceof CombatPlayer victim) {
+                            PlayerPosition previous = players.get(victim.playerId());
+                            PlayerPosition correction = new PlayerPosition(victim.playerId(), victim.x(), victim.y(),
+                                previous == null ? 0 : previous.direction, false);
+                            correction.correction = true;
+                            correction.movementRevision = victim.movementRevision();
+                            players.put(victim.playerId(), correction);
+                            server.sendToAllTCP(correction);
                             server.sendToTCP(victim.playerId(), healthPacket(victim));
                             if (!victim.isAlive()) {
                                 PlayerPosition stopped = players.get(victim.playerId());

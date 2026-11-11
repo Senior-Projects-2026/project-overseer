@@ -108,6 +108,7 @@ public class Network {
     // Movement
     /** Client to server: the sender's latest world position. */
     public static class PositionUpdate {
+        public long movementRevision;
         public float x;
         public float y;
         public int direction;
@@ -124,6 +125,8 @@ public class Network {
 
     /** Server to clients: a player's latest world position. */
     public static class PlayerPosition {
+        public long movementRevision;
+        public boolean correction;
         public int playerId;
         public float x;
         public float y;

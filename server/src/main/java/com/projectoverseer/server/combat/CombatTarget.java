@@ -10,4 +10,6 @@ public interface CombatTarget {
     float height();
     boolean isAlive();
     void takeDamage(float damage);
+    /** Apply a collision-checked server position; enemy adapters must update their entity here. */
+    void moveTo(float x, float y);
 }

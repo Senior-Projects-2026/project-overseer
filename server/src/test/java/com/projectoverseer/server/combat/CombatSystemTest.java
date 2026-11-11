@@ -137,5 +137,6 @@ class CombatSystemTest {
         public float height() { return 16; }
         public boolean isAlive() { return damage < 30; }
         public void takeDamage(float amount) { damage += amount; hits++; }
+        public void moveTo(float x, float y) {}
     }
 }

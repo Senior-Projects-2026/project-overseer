@@ -8,6 +8,16 @@ public final class CombatPlayer implements CombatTarget {
     private float x, y;
     private float health = CombatRules.PLAYER_MAX_HEALTH;
     private boolean positioned;
+    private long movementRevision;
+    public long movementRevision() { return movementRevision; }
+    public void moveTo(float x, float y) {
+        this.x = x;
+        this.y = y;
+        movementRevision++;
+    }
+    public boolean updatePosition(float x, float y, long revision) {
+        return revision == movementRevision && updatePosition(x, y);
+    }
 
     public CombatPlayer(int playerId) { this.playerId = playerId; }
     public int playerId() { return playerId; }
