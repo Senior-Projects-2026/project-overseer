@@ -102,7 +102,7 @@ public class Main extends ApplicationAdapter {
             hud.getStage(),
             player.getInventory(),
             itemId -> {
-                if (isConnected && gameState == GameState.PLAYING) {
+                if (isConnected && gameState == GameState.PLAYING && player.getStats().getHealth() > 0) {
                     client.sendTCP(new CraftRequest(itemId));
                 }
             }
@@ -196,6 +196,17 @@ public class Main extends ApplicationAdapter {
                         );
                     });
 
+                }
+                else if (object instanceof PlayerHealth health) {
+                    Gdx.app.postRunnable(() -> {
+                        if (health.playerId != playerId || !isConnected) return;
+                        player.getStats().setHealth((int) Math.ceil(health.health));
+                        Gdx.app.log("Combat", "Health: " + health.health);
+                        if (health.health <= 0) {
+                            player.setRemoteState(health.x, health.y, player.getDirection(), false);
+                            Gdx.app.log("Combat", "You died. Reconnect to start with full health.");
+                        }
+                    });
                 }
                 else if (object instanceof AttackAccepted attack) {
                     Gdx.app.postRunnable(() -> {
@@ -371,6 +382,7 @@ public class Main extends ApplicationAdapter {
 
     private void handlePrimaryAction() {
         if (gameState != GameState.PLAYING
+            || player.getStats().getHealth() == 0
             || !isConnected
             || craftingMenu.isOpen()
             || !Gdx.input.isButtonJustPressed(Input.Buttons.LEFT)) {

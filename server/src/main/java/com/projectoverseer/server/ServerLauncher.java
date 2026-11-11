@@ -6,6 +6,9 @@ import com.esotericsoftware.kryonet.Server;
 
 import com.projectoverseer.gameplay.Inventory;
 import com.projectoverseer.server.combat.AttackValidator;
+import com.projectoverseer.server.combat.CombatPlayer;
+import com.projectoverseer.server.combat.CombatSystem;
+import com.projectoverseer.server.combat.CombatTarget;
 import com.projectoverseer.shared.combat.CombatConfig;
 import com.projectoverseer.gameplay.ItemStack;
 import com.projectoverseer.shared.Network;
@@ -68,6 +71,8 @@ public class ServerLauncher {
         Map<Integer, PlayerPosition> players = new HashMap<>();
         Map<Integer, Inventory> playerInventories = new HashMap<>();
         AttackValidator attacks = new AttackValidator(CombatConfig.defaults());
+        CombatSystem combat = new CombatSystem();
+        Map<Integer, CombatPlayer> combatPlayers = new HashMap<>();
 
         Map<Long, Integer> treeHits = new HashMap<>();
         Map<Integer, Long> lastPunchTime = new HashMap<>();
@@ -95,6 +100,10 @@ public class ServerLauncher {
                 connection.sendTCP(welcome);
 
                 int playerId = connection.getID();
+                CombatPlayer combatPlayer = new CombatPlayer(playerId);
+                combatPlayers.put(playerId, combatPlayer);
+                combat.register(combatPlayer);
+                connection.sendTCP(healthPacket(combatPlayer));
                 playerInventories.put(
                     playerId,
                     new Inventory()
@@ -121,6 +130,8 @@ public class ServerLauncher {
 
             @Override
             public void received(Connection connection, Object object) {
+                CombatPlayer combatPlayer = combatPlayers.get(connection.getID());
+                if (combatPlayer == null || !combatPlayer.isAlive()) return;
                 if (object instanceof Ping) {
                     Ping ping = (Ping) object;
                     System.out.println("SERVER: Received from client -> " + ping.message);
@@ -130,6 +141,7 @@ public class ServerLauncher {
                     connection.sendTCP(response);
                 } else if (object instanceof PositionUpdate) {
                     PositionUpdate update = (PositionUpdate) object;
+                    if (!combatPlayer.updatePosition(update.x, update.y)) return;
                     PlayerPosition position = new PlayerPosition(
                         connection.getID(), update.x, update.y, update.direction, update.moving);
                     players.put(connection.getID(), position);
@@ -153,6 +165,20 @@ public class ServerLauncher {
                     accepted.directionX = swing.directionX();
                     accepted.directionY = swing.directionY();
                     server.sendToAllTCP(accepted);
+                    for (CombatTarget target : combat.resolve(combatPlayer.combatId(), swing)) {
+                        System.out.println("SERVER: " + combatPlayer.combatId() + " hit "
+                            + target.combatId() + " for " + swing.stats().damage());
+                        if (target instanceof CombatPlayer victim) {
+                            server.sendToTCP(victim.playerId(), healthPacket(victim));
+                            if (!victim.isAlive()) {
+                                PlayerPosition stopped = players.get(victim.playerId());
+                                if (stopped != null) {
+                                    stopped.moving = false;
+                                    server.sendToAllTCP(stopped);
+                                }
+                            }
+                        }
+                    }
                 }
                 else if (object instanceof PunchTree punch) {
                     int playerId = connection.getID();
@@ -379,6 +405,8 @@ public class ServerLauncher {
 
             @Override
             public void disconnected(Connection connection) {
+                CombatPlayer removed = combatPlayers.remove(connection.getID());
+                if (removed != null) combat.remove(removed.combatId());
                 players.remove(connection.getID());
 
                 PlayerLeft left = new PlayerLeft(connection.getID());
@@ -423,6 +451,15 @@ public class ServerLauncher {
                 break;
             }
         }
+    }
+
+    private static PlayerHealth healthPacket(CombatPlayer player) {
+        PlayerHealth packet = new PlayerHealth();
+        packet.playerId = player.playerId();
+        packet.health = player.health();
+        packet.x = player.x();
+        packet.y = player.y();
+        return packet;
     }
 
     private static void sendInventorySync(

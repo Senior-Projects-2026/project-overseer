@@ -85,6 +85,11 @@ public class Player {
     }
 
     public void update(List<Chunk> chunks) {
+        if (stats.getHealth() == 0) {
+            moving = false;
+            stateTime = 0f;
+            return;
+        }
         if (!localPlayer) {
             stateTime = moving ? stateTime + Gdx.graphics.getDeltaTime() : 0f;
             return;

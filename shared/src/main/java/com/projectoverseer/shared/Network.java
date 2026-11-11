@@ -63,10 +63,18 @@ public class Network {
         kryo.register(CraftResult.class);
         kryo.register(AttackRequest.class);
         kryo.register(AttackAccepted.class);
+        kryo.register(PlayerHealth.class);
 
     }
 
     // 3. DTOs
+    /** Server to player: authoritative health; position corrects movement on death. */
+    public static class PlayerHealth {
+        public int playerId;
+        public float health, x, y;
+        public PlayerHealth() {}
+    }
+
     public static class AttackRequest {
         public int selectedSlot;
         public float aimX, aimY;
