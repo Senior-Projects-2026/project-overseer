@@ -197,6 +197,14 @@ public class Main extends ApplicationAdapter {
                     });
 
                 }
+                else if (object instanceof AttackAccepted attack) {
+                    Gdx.app.postRunnable(() -> {
+                        if (attack.playerId == playerId) {
+                            Gdx.app.log("Combat", "Attack accepted: "
+                                + (attack.itemId.isEmpty() ? "unarmed" : attack.itemId));
+                        }
+                    });
+                }
                 else if (object instanceof InventorySync sync) {
 
                     if (sync.itemIds == null
@@ -361,7 +369,7 @@ public class Main extends ApplicationAdapter {
 
 
 
-    private void handleResourcePunch() {
+    private void handlePrimaryAction() {
         if (gameState != GameState.PLAYING
             || !isConnected
             || craftingMenu.isOpen()
@@ -399,6 +407,7 @@ public class Main extends ApplicationAdapter {
             );
 
         if (resource == null) {
+            client.sendTCP(new AttackRequest(player.getInventory().getSelectedSlot(), mouseWorld.x, mouseWorld.y));
             return;
         }
 
@@ -412,6 +421,7 @@ public class Main extends ApplicationAdapter {
         float dy = playerY - resourceY;
 
         if (dx * dx + dy * dy > 64f * 64f) {
+            client.sendTCP(new AttackRequest(player.getInventory().getSelectedSlot(), mouseWorld.x, mouseWorld.y));
             return;
         }
 
@@ -491,7 +501,7 @@ public class Main extends ApplicationAdapter {
         camera.position.y = Math.round(camera.position.y);
 
         camera.update();
-        handleResourcePunch();
+        handlePrimaryAction();
 
         // Making the entire screen black for black screen borders
         Gdx.gl.glClearColor(0, 0, 0, 1);

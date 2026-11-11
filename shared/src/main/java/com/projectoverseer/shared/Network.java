@@ -61,10 +61,30 @@ public class Network {
 
         kryo.register(CraftRequest.class);
         kryo.register(CraftResult.class);
+        kryo.register(AttackRequest.class);
+        kryo.register(AttackAccepted.class);
 
     }
 
     // 3. DTOs
+    public static class AttackRequest {
+        public int selectedSlot;
+        public float aimX, aimY;
+        public AttackRequest() {}
+        public AttackRequest(int selectedSlot, float aimX, float aimY) {
+            this.selectedSlot = selectedSlot;
+            this.aimX = aimX;
+            this.aimY = aimY;
+        }
+    }
+
+    /** Server-approved swing, also usable by the future animation system. */
+    public static class AttackAccepted {
+        public int playerId;
+        public String itemId;
+        public float originX, originY, directionX, directionY;
+        public AttackAccepted() {}
+    }
 
     // Utils
     public static class Ping {

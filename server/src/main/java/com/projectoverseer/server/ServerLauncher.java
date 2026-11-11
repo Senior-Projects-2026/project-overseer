@@ -5,6 +5,8 @@ import com.esotericsoftware.kryonet.Listener;
 import com.esotericsoftware.kryonet.Server;
 
 import com.projectoverseer.gameplay.Inventory;
+import com.projectoverseer.server.combat.AttackValidator;
+import com.projectoverseer.shared.combat.CombatConfig;
 import com.projectoverseer.gameplay.ItemStack;
 import com.projectoverseer.shared.Network;
 import com.projectoverseer.shared.Network.*;
@@ -65,6 +67,7 @@ public class ServerLauncher {
 
         Map<Integer, PlayerPosition> players = new HashMap<>();
         Map<Integer, Inventory> playerInventories = new HashMap<>();
+        AttackValidator attacks = new AttackValidator(CombatConfig.defaults());
 
         Map<Long, Integer> treeHits = new HashMap<>();
         Map<Integer, Long> lastPunchTime = new HashMap<>();
@@ -133,6 +136,23 @@ public class ServerLauncher {
                     for (Connection recipient : server.getConnections()) {
                         if (recipient.getID() != connection.getID()) recipient.sendUDP(position);
                     }
+                }
+                else if (object instanceof AttackRequest request) {
+                    int id = connection.getID();
+                    PlayerPosition position = players.get(id);
+                    if (position == null) return;
+                    AttackValidator.Swing swing = attacks.accept(id, playerInventories.get(id),
+                        position.x + 16f, position.y + 16f, gameStarted && day <= winThreshold,
+                        request, System.nanoTime());
+                    if (swing == null) return;
+                    AttackAccepted accepted = new AttackAccepted();
+                    accepted.playerId = id;
+                    accepted.itemId = swing.itemId();
+                    accepted.originX = swing.originX();
+                    accepted.originY = swing.originY();
+                    accepted.directionX = swing.directionX();
+                    accepted.directionY = swing.directionY();
+                    server.sendToAllTCP(accepted);
                 }
                 else if (object instanceof PunchTree punch) {
                     int playerId = connection.getID();
@@ -375,6 +395,7 @@ public class ServerLauncher {
                 }
 
                 lastPunchTime.remove(connection.getID());
+                attacks.removePlayer(connection.getID());
 
                 playerInventories.remove(connection.getID());
 
