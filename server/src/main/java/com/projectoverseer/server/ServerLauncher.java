@@ -147,6 +147,11 @@ public class ServerLauncher {
                         connection.getID(), update.x, update.y, update.direction, update.moving);
                     players.put(connection.getID(), position);
                     position.movementRevision = combatPlayer.movementRevision();
+                    Inventory inventory = playerInventories.get(connection.getID());
+                    if (inventory != null && update.selectedSlot >= 0 && update.selectedSlot < Inventory.SLOT_COUNT) {
+                        ItemStack held = inventory.getSlot(update.selectedSlot);
+                        position.heldItemId = held == null ? "" : held.itemId();
+                    }
                     for (Connection recipient : server.getConnections()) {
                         if (recipient.getID() != connection.getID()) recipient.sendUDP(position);
                     }
@@ -180,6 +185,7 @@ public class ServerLauncher {
                             PlayerPosition correction = new PlayerPosition(victim.playerId(), victim.x(), victim.y(),
                                 previous == null ? 0 : previous.direction, false);
                             correction.correction = true;
+                            correction.heldItemId = victim.isAlive() && previous != null ? previous.heldItemId : "";
                             correction.movementRevision = victim.movementRevision();
                             players.put(victim.playerId(), correction);
                             server.sendToAllTCP(correction);

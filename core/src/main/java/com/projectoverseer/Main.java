@@ -149,6 +149,7 @@ public class Main extends ApplicationAdapter {
                             Player remote = otherPlayers.computeIfAbsent(
                                 position.playerId, id -> new Player(false));
                             remote.setRemoteState(position.x, position.y, position.direction, position.moving);
+                            remote.setHeldItem(position.heldItemId);
                         }
                     });
                 } else if (object instanceof PlayerLeft) {
@@ -491,6 +492,7 @@ public class Main extends ApplicationAdapter {
                 PositionUpdate position = new PositionUpdate(
                     player.getX(), player.getY(), player.getDirection(), player.isMoving());
                 position.movementRevision = movementRevisions.getOrDefault(playerId, 0L);
+                position.selectedSlot = player.getInventory().getSelectedSlot();
                 client.sendUDP(position);
             }
         }
