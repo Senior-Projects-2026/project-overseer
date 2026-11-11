@@ -49,23 +49,30 @@ public class Player {
 
     public Player(boolean localPlayer) {
         this.localPlayer = localPlayer;
-        spriteSheet = new Texture("player.png");
+        if (Gdx.app != null) {
+            spriteSheet = new Texture("player.png");
 
-        TextureRegion[][] frames = TextureRegion.split(spriteSheet,
-            spriteSheet.getWidth() / 6,
-            spriteSheet.getHeight() / 16);
+            TextureRegion[][] frames = TextureRegion.split(spriteSheet,
+                spriteSheet.getWidth() / 6,
+                spriteSheet.getHeight() / 16);
 
-        walkUp = new Animation<>(0.1f, frames[12]);
-        walkLeft = new Animation<>(0.1f, frames[14]);
-        walkDown = new Animation<>(0.1f, frames[8]);
-        walkRight = new Animation<>(0.1f, frames[10]);
+            walkUp = new Animation<>(0.1f, frames[12]);
+            walkLeft = new Animation<>(0.1f, frames[14]);
+            walkDown = new Animation<>(0.1f, frames[8]);
+            walkRight = new Animation<>(0.1f, frames[10]);
 
-        walkUpLeft = new Animation<>(0.1f, frames[13]);
-        walkUpRight = new Animation<>(0.1f, frames[11]);
-        walkDownLeft = new Animation<>(0.1f, frames[15]);
-        walkDownRight = new Animation<>(0.1f, frames[9]);
+            walkUpLeft = new Animation<>(0.1f, frames[13]);
+            walkUpRight = new Animation<>(0.1f, frames[11]);
+            walkDownLeft = new Animation<>(0.1f, frames[15]);
+            walkDownRight = new Animation<>(0.1f, frames[9]);
 
-        currentAnimation = walkDown;
+            currentAnimation = walkDown;
+        } else {
+            // for testing
+            walkUp = walkLeft = walkDown = walkRight = walkUpLeft = walkUpRight = walkDownLeft = walkDownRight = null;
+            currentAnimation = null;
+        }
+
     }
 
 

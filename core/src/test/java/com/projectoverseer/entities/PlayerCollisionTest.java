@@ -14,15 +14,7 @@ import com.projectoverseer.shared.world.TileType;
 public class PlayerCollisionTest {
 
     private Player createPlayer() throws Exception {
-        sun.misc.Unsafe unsafe;
-
-        java.lang.reflect.Field field =
-            sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
-
-        field.setAccessible(true);
-        unsafe = (sun.misc.Unsafe) field.get(null);
-
-        return (Player) unsafe.allocateInstance(Player.class);
+        return new Player(true);
     }
 
     private boolean canMoveTo(Player player, float x, float y,
