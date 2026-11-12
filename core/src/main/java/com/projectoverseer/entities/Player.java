@@ -36,6 +36,14 @@ public class Player {
     private boolean moving;
 
     private Texture spriteSheet;
+    private Texture heldSwordTexture;
+    private TextureRegion heldSwordRight;
+    private TextureRegion heldSwordLeft;
+    private String remoteHeldItem = "";
+
+    public void setHeldItem(String itemId) {
+        remoteHeldItem = itemId == null ? "" : itemId;
+    }
     private Animation<TextureRegion> walkUp;
     private Animation<TextureRegion> walkLeft;
     private Animation<TextureRegion> walkDown;
@@ -51,6 +59,11 @@ public class Player {
         this.localPlayer = localPlayer;
         if (Gdx.app != null) {
             spriteSheet = new Texture("player.png");
+            heldSwordTexture = new Texture("ui/items/dagger.png");
+            heldSwordTexture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+            heldSwordRight = new TextureRegion(heldSwordTexture);
+            heldSwordLeft = new TextureRegion(heldSwordTexture);
+            heldSwordLeft.flip(true, false);
 
             TextureRegion[][] frames = TextureRegion.split(spriteSheet,
                 spriteSheet.getWidth() / 6,
@@ -85,6 +98,11 @@ public class Player {
     }
 
     public void update(List<Chunk> chunks) {
+        if (stats.getHealth() == 0) {
+            moving = false;
+            stateTime = 0f;
+            return;
+        }
         if (!localPlayer) {
             stateTime = moving ? stateTime + Gdx.graphics.getDeltaTime() : 0f;
             return;
@@ -156,7 +174,28 @@ public class Player {
 
     public void render(SpriteBatch batch) {
         TextureRegion currentFrame = currentAnimation.getKeyFrame(stateTime, true);
+        var selected = inventory.getSlot(inventory.getSelectedSlot());
+        String heldItem = localPlayer ? (selected == null ? "" : selected.itemId()) : remoteHeldItem;
+        boolean showSword = heldSwordTexture != null && stats.getHealth() > 0
+            && "sword".equals(heldItem);
+        boolean facingAway = direction == UP || direction == UP_LEFT || direction == UP_RIGHT;
+        if (showSword && facingAway) renderHeldSword(batch);
         batch.draw(currentFrame, x, y);
+        if (showSword && !facingAway) renderHeldSword(batch);
+    }
+
+    private void renderHeldSword(SpriteBatch batch) {
+        boolean facingLeft = direction == LEFT || direction == UP_LEFT || direction == DOWN_LEFT;
+        float width = 16f;
+        float height = width * heldSwordTexture.getHeight() / heldSwordTexture.getWidth();
+        // Anchor the grip, rather than the image corner, to the hand in the 32x32 player frame.
+        float gripX = width * (facingLeft ? 0.77f : 0.23f);
+        float gripY = height * 0.25f;
+        float handX = x + (facingLeft ? 9f : 22f);
+        float handY = y + 10f;
+        batch.draw(facingLeft ? heldSwordLeft : heldSwordRight,
+            handX - gripX, handY - gripY, gripX, gripY,
+            width, height, 1f, 1f, 0f);
     }
 
     /** Applies authoritative position and animation state received for a remote player. */
@@ -215,6 +254,7 @@ public class Player {
     }
 
     public void dispose() {
+        if (heldSwordTexture != null) heldSwordTexture.dispose();
         if (spriteSheet != null) {
             spriteSheet.dispose();
         }

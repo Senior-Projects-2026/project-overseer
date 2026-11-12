@@ -60,6 +60,7 @@ public class Main extends ApplicationAdapter {
 
     private Player player;
     private final Map<Integer, Player> otherPlayers = new HashMap<>();
+    private final Map<Integer, Long> movementRevisions = new HashMap<>();
     private TileRenderer tileRenderer;
     private WorldObjectRenderer worldObjectRenderer;
 
@@ -102,7 +103,7 @@ public class Main extends ApplicationAdapter {
             hud.getStage(),
             player.getInventory(),
             itemId -> {
-                if (isConnected && gameState == GameState.PLAYING) {
+                if (isConnected && gameState == GameState.PLAYING && player.getStats().getHealth() > 0) {
                     client.sendTCP(new CraftRequest(itemId));
                 }
             }
@@ -136,17 +137,26 @@ public class Main extends ApplicationAdapter {
                     Gdx.app.postRunnable(() -> acceptWelcome(connection, welcome));
                 } else if (object instanceof PlayerPosition) {
                     PlayerPosition position = (PlayerPosition) object;
-                    if (position.playerId != playerId) {
-                        Gdx.app.postRunnable(() -> {
+                    Gdx.app.postRunnable(() -> {
+                        long known = movementRevisions.getOrDefault(position.playerId, 0L);
+                        if (position.movementRevision < known) return;
+                        movementRevisions.put(position.playerId, position.movementRevision);
+                        if (position.playerId == playerId) {
+                            if (position.correction) {
+                                player.setRemoteState(position.x, position.y, position.direction, false);
+                            }
+                        } else {
                             Player remote = otherPlayers.computeIfAbsent(
                                 position.playerId, id -> new Player(false));
                             remote.setRemoteState(position.x, position.y, position.direction, position.moving);
-                        });
-                    }
+                            remote.setHeldItem(position.heldItemId);
+                        }
+                    });
                 } else if (object instanceof PlayerLeft) {
                     int leftId = ((PlayerLeft) object).playerId;
                     Gdx.app.postRunnable(() -> {
                         Player removed = otherPlayers.remove(leftId);
+                        movementRevisions.remove(leftId);
                         if (removed != null) removed.dispose();
                     });
                 } else if (object instanceof TimeSync) {
@@ -196,6 +206,25 @@ public class Main extends ApplicationAdapter {
                         );
                     });
 
+                }
+                else if (object instanceof PlayerHealth health) {
+                    Gdx.app.postRunnable(() -> {
+                        if (health.playerId != playerId || !isConnected) return;
+                        player.getStats().setHealth((int) Math.ceil(health.health));
+                        Gdx.app.log("Combat", "Health: " + health.health);
+                        if (health.health <= 0) {
+                            player.setRemoteState(health.x, health.y, player.getDirection(), false);
+                            Gdx.app.log("Combat", "You died. Reconnect to start with full health.");
+                        }
+                    });
+                }
+                else if (object instanceof AttackAccepted attack) {
+                    Gdx.app.postRunnable(() -> {
+                        if (attack.playerId == playerId) {
+                            Gdx.app.log("Combat", "Attack accepted: "
+                                + (attack.itemId.isEmpty() ? "unarmed" : attack.itemId));
+                        }
+                    });
                 }
                 else if (object instanceof InventorySync sync) {
 
@@ -361,8 +390,9 @@ public class Main extends ApplicationAdapter {
 
 
 
-    private void handleResourcePunch() {
+    private void handlePrimaryAction() {
         if (gameState != GameState.PLAYING
+            || player.getStats().getHealth() == 0
             || !isConnected
             || craftingMenu.isOpen()
             || !Gdx.input.isButtonJustPressed(Input.Buttons.LEFT)) {
@@ -399,6 +429,7 @@ public class Main extends ApplicationAdapter {
             );
 
         if (resource == null) {
+            client.sendTCP(new AttackRequest(player.getInventory().getSelectedSlot(), mouseWorld.x, mouseWorld.y));
             return;
         }
 
@@ -412,6 +443,7 @@ public class Main extends ApplicationAdapter {
         float dy = playerY - resourceY;
 
         if (dx * dx + dy * dy > 64f * 64f) {
+            client.sendTCP(new AttackRequest(player.getInventory().getSelectedSlot(), mouseWorld.x, mouseWorld.y));
             return;
         }
 
@@ -457,8 +489,11 @@ public class Main extends ApplicationAdapter {
             positionUpdateTimer += Gdx.graphics.getDeltaTime() * 1000f;
             if (positionUpdateTimer >= Network.POSITION_UPDATE_INTERVAL_MS) {
                 positionUpdateTimer = 0f;
-                client.sendUDP(new PositionUpdate(
-                    player.getX(), player.getY(), player.getDirection(), player.isMoving()));
+                PositionUpdate position = new PositionUpdate(
+                    player.getX(), player.getY(), player.getDirection(), player.isMoving());
+                position.movementRevision = movementRevisions.getOrDefault(playerId, 0L);
+                position.selectedSlot = player.getInventory().getSelectedSlot();
+                client.sendUDP(position);
             }
         }
 
@@ -491,7 +526,7 @@ public class Main extends ApplicationAdapter {
         camera.position.y = Math.round(camera.position.y);
 
         camera.update();
-        handleResourcePunch();
+        handlePrimaryAction();
 
         // Making the entire screen black for black screen borders
         Gdx.gl.glClearColor(0, 0, 0, 1);
@@ -603,6 +638,7 @@ public class Main extends ApplicationAdapter {
     private void disposeOtherPlayers() {
         for (Player other : otherPlayers.values()) other.dispose();
         otherPlayers.clear();
+        movementRevisions.clear();
 
     }
 
