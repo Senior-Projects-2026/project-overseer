@@ -2,29 +2,38 @@ package com.projectoverseer.server.telemetry;
 
 import com.google.gson.Gson;
 import org.junit.jupiter.api.Test;
-import java.util.ArrayList;
 import static org.junit.jupiter.api.Assertions.*;
 
 class TelemetryDataTest {
 
     @Test
-    void testSerializationCreatesCorrectJson() {
-        // Arrange: Prepare mock data
+    void testComplexSerializationMatchesPythonSchema() {
+        // Arrange
         TelemetryData data = new TelemetryData();
-        data.dayNumber = 5;
-        data.activeEnemiesCount = 12;
-        data.players = new ArrayList<>();
-        data.players.add(new TelemetryData.PlayerStat(1, 75.0f, 100.0f, true));
+        data.tick = 4;
 
-        // Act: Serialize to JSON
+        data.world = new TelemetryData.WorldTelemetry();
+        data.world.day = 2;
+        data.world.elapsed_seconds = 120.5f;
+        data.world.phase = "night";
+
+        data.players = new TelemetryData.PlayerTelemetry();
+        data.players.alive = 3;
+        data.players.average_health = 75.0f;
+        data.players.average_equipment_level = 1.0f;
+        data.players.deaths_last_5_minutes = 1;
+        data.players.kills_last_5_minutes = 5;
+
+        // Act
         Gson gson = new Gson();
         String json = gson.toJson(data);
 
-        // Assert: Verify the JSON contains the correct keys and values
-        assertNotNull(json, "The generated JSON should not be null");
-        assertTrue(json.contains("\"dayNumber\":5"), "JSON should contain the correct day number");
-        assertTrue(json.contains("\"activeEnemiesCount\":12"), "JSON should contain the active enemies count");
-        assertTrue(json.contains("\"playerId\":1"), "JSON should contain the player ID");
-        assertTrue(json.contains("\"hasWeapon\":true"), "JSON should contain the weapon status");
+        // Assert
+        assertNotNull(json, "JSON should not be null");
+        assertTrue(json.contains("\"match_id\":\"dev-match-1\""), "Should contain default match ID");
+        assertTrue(json.contains("\"tick\":4"), "Should contain the correct tick");
+        assertTrue(json.contains("\"phase\":\"night\""), "World telemetry should contain phase");
+        assertTrue(json.contains("\"average_health\":75.0"), "Player telemetry should contain average health");
+        assertTrue(json.contains("\"deaths_last_5_minutes\":1"), "Player telemetry should contain recent deaths");
     }
 }

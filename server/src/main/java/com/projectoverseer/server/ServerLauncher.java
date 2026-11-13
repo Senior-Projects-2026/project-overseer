@@ -45,7 +45,7 @@ public class ServerLauncher {
     // Day-Night logic
     private static int day = 1;
     private static float timeTimer = 0;
-    private static float dayLengthSeconds = 10;
+    private static float dayLengthSeconds = 100;
     private static float nightThreshold = 0.7f;
     private static int winThreshold = 30;
     private static boolean gameStarted = false;
@@ -198,6 +198,8 @@ public class ServerLauncher {
                             server.sendToAllTCP(correction);
                             server.sendToTCP(victim.playerId(), healthPacket(victim));
                             if (!victim.isAlive()) {
+                                overseerTelemetry.recordPlayerDeath();
+
                                 PlayerPosition stopped = players.get(victim.playerId());
                                 if (stopped != null) {
                                     stopped.moving = false;
@@ -535,8 +537,10 @@ public class ServerLauncher {
     public static void update(float delta, Server server) {
         if (!gameStarted || server.getConnections().size() == 0) return;
 
+        boolean isNight = timeTimer > dayLengthSeconds * nightThreshold;
+
         // enemiesCount = 0 for now, because they are not implemented yet
-        overseerTelemetry.update(delta, day, 0, combatPlayers, playerInventories);
+        overseerTelemetry.update(delta, day, isNight, 0, combatPlayers, playerInventories);
 
         timeTimer += delta;
         syncTimer += delta;
@@ -550,7 +554,6 @@ public class ServerLauncher {
         if (syncTimer >= serverSyncInterval) {
             syncTimer = 0f;
 
-            boolean isNight = timeTimer > dayLengthSeconds * nightThreshold;
             TimeSync syncPacket = new TimeSync();
             syncPacket.currentDay = day;
             syncPacket.isNight = isNight;

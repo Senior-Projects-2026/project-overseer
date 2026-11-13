@@ -12,24 +12,28 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 class TelemetryCollectorTest {
 
     @Test
-    void testUpdateDoesNotThrowExceptions() {
+    void testUpdateAndEventTrackingDoesNotThrowExceptions() {
         // Arrange
         TelemetryCollector collector = new TelemetryCollector();
         Map<Integer, CombatPlayer> players = new HashMap<>();
         Map<Integer, Inventory> inventories = new HashMap<>();
 
-        // Add a mock player to prevent sending empty collections
+        // Add a mock player
         players.put(1, new CombatPlayer(1));
         inventories.put(1, new Inventory());
 
         // Act & Assert
         assertDoesNotThrow(() -> {
-            // Simulate 10 seconds passing (Should NOT trigger the HTTP request)
-            collector.update(10f, 1, 0, players, inventories);
+            // Simulate events happening in the game loop
+            collector.recordPlayerDeath();
+            collector.recordEnemyKill();
+            collector.recordEnemyKill();
 
-            // Simulate 25 more seconds (Total 35s > 30s threshold. SHOULD trigger the HTTP request)
-            // We expect this to NOT throw an exception, even if the Python server is offline
-            collector.update(25f, 1, 0, players, inventories);
-        }, "The update method should gracefully handle HTTP errors without crashing the server");
+            // Simulate 10 seconds passing (Daytime)
+            collector.update(10f, 1, false, 0, players, inventories);
+
+            // Simulate 25 more seconds (Nighttime, triggers HTTP request)
+            collector.update(25f, 1, true, 0, players, inventories);
+        }, "The collector should gracefully handle updates and event tracking without crashing");
     }
 }

@@ -1,28 +1,34 @@
 package com.projectoverseer.server.telemetry;
 
-import java.util.List;
-
-/**
- * Data Transfer Object (DTO) used to serialize game state into JSON.
- * It contains the overall tension metrics (day, enemy counts) and a breakdown
- * of individual player conditions that the Python script will analyze.
- */
 public class TelemetryData {
-    public int dayNumber;
-    public int activeEnemiesCount;
-    public List<PlayerStat> players;
+    public String match_id = "dev-match-1";
+    public int tick;
+    public PlayerTelemetry players;
+    public EnemyTelemetry enemies;
+    public WorldTelemetry world;
+    public PerformanceTelemetry performance;
 
-    public static class PlayerStat {
-        public int playerId;
-        public float health;
-        public float maxHealth;
-        public boolean hasWeapon;
+    public static class PlayerTelemetry {
+        public int alive;
+        public float average_health;
+        public int deaths_last_5_minutes;
+        public int kills_last_5_minutes;
+        public float average_equipment_level;
+    }
 
-        public PlayerStat(int playerId, float health, float maxHealth, boolean hasWeapon) {
-            this.playerId = playerId;
-            this.health = health;
-            this.maxHealth = maxHealth;
-            this.hasWeapon = hasWeapon;
-        }
+    public static class EnemyTelemetry {
+        public int alive;
+        public int killed_last_5_minutes;
+    }
+
+    public static class WorldTelemetry {
+        public int day;
+        public float elapsed_seconds;
+        public String phase; // "day" or "night"
+    }
+
+    public static class PerformanceTelemetry {
+        public float server_tick_ms;
+        public float server_load;
     }
 }
