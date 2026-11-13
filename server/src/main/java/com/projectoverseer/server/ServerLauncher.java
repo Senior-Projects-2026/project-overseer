@@ -10,6 +10,7 @@ import com.projectoverseer.server.combat.CombatPlayer;
 import com.projectoverseer.server.combat.CombatSystem;
 import com.projectoverseer.server.combat.CombatTarget;
 import com.projectoverseer.server.combat.Knockback;
+import com.projectoverseer.server.telemetry.TelemetryCollector;
 import com.projectoverseer.shared.combat.CombatConfig;
 import com.projectoverseer.gameplay.ItemStack;
 import com.projectoverseer.shared.Network;
@@ -31,6 +32,11 @@ import java.util.Map;
 public class ServerLauncher {
     private static List<Chunk> worldChunks;
     private static WorldGenerator worldGenerator;
+    private static TelemetryCollector overseerTelemetry;
+
+    private static Map<Integer, PlayerPosition> players = new HashMap<>();
+    private static Map<Integer, Inventory> playerInventories = new HashMap<>();
+    private static Map<Integer, CombatPlayer> combatPlayers = new HashMap<>();
 
     // Server configuration
     private static int serverSleepTime = 50;
@@ -69,16 +75,17 @@ public class ServerLauncher {
         Network.register(server);
         server.bind(Network.TCP_PORT, Network.UDP_PORT);
 
-        Map<Integer, PlayerPosition> players = new HashMap<>();
-        Map<Integer, Inventory> playerInventories = new HashMap<>();
+        players = new HashMap<>();
+        playerInventories = new HashMap<>();
         AttackValidator attacks = new AttackValidator(CombatConfig.defaults());
         CombatSystem combat = new CombatSystem();
-        Map<Integer, CombatPlayer> combatPlayers = new HashMap<>();
+        combatPlayers = new HashMap<>();
+
+        overseerTelemetry = new TelemetryCollector();
 
         Map<Long, Integer> treeHits = new HashMap<>();
         Map<Integer, Long> lastPunchTime = new HashMap<>();
         List<TreeRemoved> destroyedTrees = new ArrayList<>();
-
 
         Map<Long, Integer> rockHits = new HashMap<>();
         List<RockRemoved> destroyedRocks = new ArrayList<>();
@@ -527,6 +534,9 @@ public class ServerLauncher {
 
     public static void update(float delta, Server server) {
         if (!gameStarted || server.getConnections().size() == 0) return;
+
+        // enemiesCount = 0 for now, because they are not implemented yet
+        overseerTelemetry.update(delta, day, 0, combatPlayers, playerInventories);
 
         timeTimer += delta;
         syncTimer += delta;
