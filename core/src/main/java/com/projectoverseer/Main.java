@@ -220,10 +220,16 @@ public class Main extends ApplicationAdapter {
                 }
                 else if (object instanceof AttackAccepted attack) {
                     Gdx.app.postRunnable(() -> {
+                        Player attacker;
                         if (attack.playerId == playerId) {
+                            attacker = player;
                             Gdx.app.log("Combat", "Attack accepted: "
                                 + (attack.itemId.isEmpty() ? "unarmed" : attack.itemId));
+                        } else {
+                            attacker = otherPlayers.computeIfAbsent(
+                                attack.playerId, id -> new Player(false));
                         }
+                        attacker.triggerAttack(attack.itemId);
                     });
                 }
                 else if (object instanceof InventorySync sync) {
