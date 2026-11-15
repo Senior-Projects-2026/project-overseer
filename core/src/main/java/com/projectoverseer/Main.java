@@ -475,7 +475,7 @@ public class Main extends ApplicationAdapter {
 
         if (gameState == GameState.VICTORY) {
             ScreenUtils.clear(0.1f, 0.4f, 0.1f, 1f);
-            dayNightRenderer.renderVictoryScreen(camera, batch);
+            dayNightRenderer.renderVictoryScreen(camera, batch, currentDay);
             return;
         }
         if (Gdx.input.isKeyJustPressed(Input.Keys.C)) {

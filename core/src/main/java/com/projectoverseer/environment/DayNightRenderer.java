@@ -60,11 +60,10 @@ public class DayNightRenderer {
         font.dispose();
     }
 
-    public void renderVictoryScreen(OrthographicCamera camera, SpriteBatch batch) {
+    public void renderVictoryScreen(OrthographicCamera camera, SpriteBatch batch, int totalDays) {
         batch.setProjectionMatrix(camera.combined);
         batch.begin();
-        //todo: actual number of days
-        font.draw(batch, "VICTORY! YOU SURVIVED 100 DAYS!",
+        font.draw(batch, "VICTORY! YOU SURVIVED " + totalDays + " DAYS!",
             camera.position.x - 180,
             camera.position.y);
         batch.end();
