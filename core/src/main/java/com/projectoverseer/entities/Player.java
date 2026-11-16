@@ -6,11 +6,14 @@ import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.Animation;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
+import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Vector2;
 
 import com.projectoverseer.gameplay.PlayerStats;
 import com.projectoverseer.gameplay.Inventory;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import com.projectoverseer.shared.world.Chunk;
 
 public class Player {
@@ -22,6 +25,9 @@ public class Player {
     public static final int UP_RIGHT = 5;
     public static final int DOWN_LEFT = 6;
     public static final int DOWN_RIGHT = 7;
+    private static final float ATTACK_ANIMATION_DURATION = 0.18f;
+    private static final float SWING_START_OFFSET = -70f;
+    private static final float SWING_END_OFFSET = 70f;
 
 
     private final PlayerStats stats = new PlayerStats();
@@ -36,10 +42,20 @@ public class Player {
     private boolean moving;
 
     private Texture spriteSheet;
-    private Texture heldSwordTexture;
-    private TextureRegion heldSwordRight;
-    private TextureRegion heldSwordLeft;
+    private final Map<String, HeldItemVisual> heldItemVisuals = new HashMap<>();
     private String remoteHeldItem = "";
+    private String attackingItemId = "";
+    private boolean attacking;
+    private float attackElapsed;
+
+    private record HeldItemVisual(Texture texture, TextureRegion right, TextureRegion left) {}
+
+    private static final Map<String, String> HELD_ITEM_ASSETS = Map.of(
+        "axe", "ui/items/axe.png",
+        "pickaxe", "ui/items/pickaxe.png",
+        // The project's sword artwork is currently named dagger.png.
+        "sword", "ui/items/dagger.png"
+    );
 
     public void setHeldItem(String itemId) {
         remoteHeldItem = itemId == null ? "" : itemId;
@@ -59,11 +75,14 @@ public class Player {
         this.localPlayer = localPlayer;
         if (Gdx.app != null) {
             spriteSheet = new Texture("player.png");
-            heldSwordTexture = new Texture("ui/items/dagger.png");
-            heldSwordTexture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
-            heldSwordRight = new TextureRegion(heldSwordTexture);
-            heldSwordLeft = new TextureRegion(heldSwordTexture);
-            heldSwordLeft.flip(true, false);
+            for (Map.Entry<String, String> item : HELD_ITEM_ASSETS.entrySet()) {
+                Texture texture = new Texture(item.getValue());
+                texture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+                TextureRegion right = new TextureRegion(texture);
+                TextureRegion left = new TextureRegion(texture);
+                left.flip(true, false);
+                heldItemVisuals.put(item.getKey(), new HeldItemVisual(texture, right, left));
+            }
 
             TextureRegion[][] frames = TextureRegion.split(spriteSheet,
                 spriteSheet.getWidth() / 6,
@@ -98,6 +117,7 @@ public class Player {
     }
 
     public void update(List<Chunk> chunks) {
+        updateAttackAnimation();
         if (stats.getHealth() == 0) {
             moving = false;
             stateTime = 0f;
@@ -176,26 +196,71 @@ public class Player {
         TextureRegion currentFrame = currentAnimation.getKeyFrame(stateTime, true);
         var selected = inventory.getSlot(inventory.getSelectedSlot());
         String heldItem = localPlayer ? (selected == null ? "" : selected.itemId()) : remoteHeldItem;
-        boolean showSword = heldSwordTexture != null && stats.getHealth() > 0
-            && "sword".equals(heldItem);
+        if (attacking && !attackingItemId.isEmpty()) heldItem = attackingItemId;
+        boolean showHeldItem = heldItemVisuals.containsKey(heldItem) && stats.getHealth() > 0;
         boolean facingAway = direction == UP || direction == UP_LEFT || direction == UP_RIGHT;
-        if (showSword && facingAway) renderHeldSword(batch);
+        if (showHeldItem && facingAway) renderHeldItem(batch, heldItem);
         batch.draw(currentFrame, x, y);
-        if (showSword && !facingAway) renderHeldSword(batch);
+        if (showHeldItem && !facingAway) renderHeldItem(batch, heldItem);
     }
 
-    private void renderHeldSword(SpriteBatch batch) {
+    private void renderHeldItem(SpriteBatch batch, String itemId) {
+        HeldItemVisual visual = heldItemVisuals.get(itemId);
+        if (visual == null) return;
+
         boolean facingLeft = direction == LEFT || direction == UP_LEFT || direction == DOWN_LEFT;
         float width = 16f;
-        float height = width * heldSwordTexture.getHeight() / heldSwordTexture.getWidth();
+        Texture texture = visual.texture();
+        float height = width * texture.getHeight() / texture.getWidth();
         // Anchor the grip, rather than the image corner, to the hand in the 32x32 player frame.
         float gripX = width * (facingLeft ? 0.77f : 0.23f);
         float gripY = height * 0.25f;
         float handX = x + (facingLeft ? 9f : 22f);
         float handY = y + 10f;
-        batch.draw(facingLeft ? heldSwordLeft : heldSwordRight,
+        TextureRegion region = facingLeft ? visual.left() : visual.right();
+        float textureForwardAngle = facingLeft ? 135f : 45f;
+        float rotation = facingAngle(direction) - textureForwardAngle + currentSwingOffset();
+        batch.draw(region,
             handX - gripX, handY - gripY, gripX, gripY,
-            width, height, 1f, 1f, 0f);
+            width, height, 1f, 1f, rotation);
+    }
+
+    private static float facingAngle(int direction) {
+        return switch (direction) {
+            case UP -> 90f;
+            case LEFT -> 180f;
+            case DOWN -> 270f;
+            case UP_LEFT -> 135f;
+            case UP_RIGHT -> 45f;
+            case DOWN_LEFT -> 225f;
+            case DOWN_RIGHT -> 315f;
+            default -> 0f;
+        };
+    }
+
+    private float currentSwingOffset() {
+        if (!attacking) return 0f;
+        float progress = MathUtils.clamp(attackElapsed / ATTACK_ANIMATION_DURATION, 0f, 1f);
+        if (progress < 0.8f) {
+            return MathUtils.lerp(SWING_START_OFFSET, SWING_END_OFFSET, progress / 0.8f);
+        }
+        return MathUtils.lerp(SWING_END_OFFSET, 0f, (progress - 0.8f) / 0.2f);
+    }
+
+    private void updateAttackAnimation() {
+        if (!attacking) return;
+        attackElapsed += Gdx.graphics.getDeltaTime();
+        if (attackElapsed >= ATTACK_ANIMATION_DURATION) {
+            attackElapsed = ATTACK_ANIMATION_DURATION;
+            attacking = false;
+        }
+    }
+
+    /** Starts a short swing after the server confirms this player's attack. */
+    public void triggerAttack(String itemId) {
+        attackingItemId = itemId == null ? "" : itemId;
+        attackElapsed = 0f;
+        attacking = true;
     }
 
     /** Applies authoritative position and animation state received for a remote player. */
@@ -254,7 +319,8 @@ public class Player {
     }
 
     public void dispose() {
-        if (heldSwordTexture != null) heldSwordTexture.dispose();
+        for (HeldItemVisual visual : heldItemVisuals.values()) visual.texture().dispose();
+        heldItemVisuals.clear();
         if (spriteSheet != null) {
             spriteSheet.dispose();
         }
