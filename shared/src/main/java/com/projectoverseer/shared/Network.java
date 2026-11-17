@@ -1,12 +1,12 @@
 package com.projectoverseer.shared;
 
-import com.esotericsoftware.kryo.Kryo;
-import com.esotericsoftware.kryonet.EndPoint;
-
-import java.io.IOException;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.IOException;
 import java.util.Properties;
+
+import com.esotericsoftware.kryo.Kryo;
+import com.esotericsoftware.kryonet.EndPoint;
 
 public class Network {
     // 1. Constants and configuration
@@ -64,7 +64,7 @@ public class Network {
         kryo.register(AttackRequest.class);
         kryo.register(AttackAccepted.class);
         kryo.register(PlayerHealth.class);
-
+        kryo.register(RespawnRequest.class);
     }
 
     // 3. DTOs
@@ -84,6 +84,10 @@ public class Network {
             this.aimX = aimX;
             this.aimY = aimY;
         }
+    }
+
+    public static class RespawnRequest {
+        public RespawnRequest() {}
     }
 
     /** Server-approved swing, also usable by the future animation system. */

@@ -1,10 +1,16 @@
 package com.projectoverseer.server;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import com.esotericsoftware.kryonet.Connection;
 import com.esotericsoftware.kryonet.Listener;
 import com.esotericsoftware.kryonet.Server;
-
 import com.projectoverseer.gameplay.Inventory;
+import com.projectoverseer.gameplay.ItemStack;
 import com.projectoverseer.server.combat.AttackValidator;
 import com.projectoverseer.server.combat.CombatPlayer;
 import com.projectoverseer.server.combat.CombatSystem;
@@ -12,22 +18,34 @@ import com.projectoverseer.server.combat.CombatTarget;
 import com.projectoverseer.server.combat.Knockback;
 import com.projectoverseer.server.config.ServerConfig;
 import com.projectoverseer.server.telemetry.TelemetryCollector;
-import com.projectoverseer.shared.combat.CombatConfig;
-import com.projectoverseer.gameplay.ItemStack;
 import com.projectoverseer.shared.Network;
-import com.projectoverseer.shared.Network.*;
+import com.projectoverseer.shared.Network.AttackAccepted;
+import com.projectoverseer.shared.Network.AttackRequest;
+import com.projectoverseer.shared.Network.CraftRequest;
+import com.projectoverseer.shared.Network.CraftResult;
+import com.projectoverseer.shared.Network.GameEnd;
+import com.projectoverseer.shared.Network.InventorySync;
+import com.projectoverseer.shared.Network.Ping;
+import com.projectoverseer.shared.Network.PlayerHealth;
+import com.projectoverseer.shared.Network.PlayerLeft;
+import com.projectoverseer.shared.Network.PlayerPosition;
+import com.projectoverseer.shared.Network.PositionUpdate;
+import com.projectoverseer.shared.Network.PunchRock;
+import com.projectoverseer.shared.Network.PunchTree;
+import com.projectoverseer.shared.Network.RespawnRequest;
+import com.projectoverseer.shared.Network.RockHit;
+import com.projectoverseer.shared.Network.RockRemoved;
+import com.projectoverseer.shared.Network.TimeSync;
+import com.projectoverseer.shared.Network.TreeHit;
+import com.projectoverseer.shared.Network.TreeRemoved;
+import com.projectoverseer.shared.Network.Welcome;
+import com.projectoverseer.shared.combat.CombatConfig;
 import com.projectoverseer.shared.crafting.CraftingRecipe;
 import com.projectoverseer.shared.world.Chunk;
+import com.projectoverseer.shared.world.ResourceGatheringRules;
 import com.projectoverseer.shared.world.ResourceType;
 import com.projectoverseer.shared.world.WorldResource;
 import com.projectoverseer.shared.world.generation.WorldGenerator;
-import com.projectoverseer.shared.world.ResourceGatheringRules;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 
 /** Launches the server application. */
 public class ServerLauncher {
@@ -142,7 +160,35 @@ public class ServerLauncher {
             @Override
             public void received(Connection connection, Object object) {
                 CombatPlayer combatPlayer = combatPlayers.get(connection.getID());
-                if (combatPlayer == null || !combatPlayer.isAlive()) return;
+                if (combatPlayer == null) return;
+
+                if (object instanceof RespawnRequest) {
+                    int playerId = connection.getID();
+
+                    float spawnX = ServerConfig.getFloat("player.spawn.x", 200f);
+                    float spawnY = ServerConfig.getFloat("player.spawn.y", 200f);
+
+                    combatPlayer.respawn(spawnX, spawnY);
+
+                    PlayerPosition previous = players.get(playerId);
+                    int direction = previous == null ? 0 : previous.direction;
+
+                    PlayerPosition position = new PlayerPosition(
+                        playerId, spawnX, spawnY, direction, false
+                    );
+                    position.correction = true;
+                    position.movementRevision = combatPlayer.movementRevision();
+
+                    players.put(playerId, position);
+
+                    server.sendToAllTCP(position);
+                    connection.sendTCP(healthPacket(combatPlayer));
+
+                    System.out.println("SERVER: Player " + playerId + " respawned.");
+                    return;
+                }
+
+                if (!combatPlayer.isAlive()) return;
                 if (object instanceof Ping) {
                     Ping ping = (Ping) object;
                     System.out.println("SERVER: Received from client -> " + ping.message);
