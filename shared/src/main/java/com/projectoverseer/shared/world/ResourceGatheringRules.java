@@ -6,7 +6,8 @@ import com.projectoverseer.gameplay.ItemStack;
 import java.util.Objects;
 
 public final class ResourceGatheringRules {
-
+    public static final int TILE_SIZE = 32;
+    public static final float PUNCH_RANGE = 64f;
     public static final int TREE_DAMAGE_REQUIRED = 6;
     public static final int ROCK_DAMAGE_REQUIRED = 7;
 

@@ -23,10 +23,7 @@ import com.projectoverseer.gameplay.Inventory;
 import com.projectoverseer.gameplay.ItemStack;
 import com.projectoverseer.shared.Network;
 import com.projectoverseer.shared.Network.*;
-import com.projectoverseer.shared.world.Chunk;
-import com.projectoverseer.shared.world.ChunkManager;
-import com.projectoverseer.shared.world.ResourceType;
-import com.projectoverseer.shared.world.WorldResource;
+import com.projectoverseer.shared.world.*;
 import com.projectoverseer.shared.world.generation.WorldGenerator;
 import com.projectoverseer.ui.CraftingMenu;
 import com.projectoverseer.ui.GameHUD;
@@ -327,7 +324,11 @@ public class Main extends ApplicationAdapter {
         gameState = GameState.CONNECTING;
         connectionError = null;
         chunks = List.of();
-        menu.show("Connecting to " + Network.SERVER_HOST + "...");
+
+        String host = ClientConfig.getString("server.host", "localhost");
+        int tcpPort = ClientConfig.getInt("server.tcp.port", Network.TCP_PORT);
+        int udpPort = ClientConfig.getInt("server.udp.port", Network.UDP_PORT);
+        menu.show("Connecting to " + host + "...");
 
         // Keep connection status visible until Welcome has supplied the world seed.
         float welcomeTimeoutSec = ClientConfig.getFloat("network.welcome.timeout.seconds", 10f);
@@ -345,7 +346,7 @@ public class Main extends ApplicationAdapter {
         int connectTimeoutMs = ClientConfig.getInt("network.connect.timeout.ms", 5000);
         new Thread(() -> {
             try {
-                client.connect(connectTimeoutMs, Network.SERVER_HOST, Network.TCP_PORT, Network.UDP_PORT);
+                client.connect(connectTimeoutMs, host, tcpPort, udpPort);
 
                 Ping myPing = new Ping();
                 myPing.message = "Hello Server, I am a new client!";
@@ -449,13 +450,16 @@ public class Main extends ApplicationAdapter {
         float playerX = player.getX() + 16f;
         float playerY = player.getY() + 16f;
 
-        float resourceX = (resource.tileX() + 0.5f) * 32f;
-        float resourceY = (resource.tileY() + 0.5f) * 32f;
+        float tileSize = ResourceGatheringRules.TILE_SIZE;
+        float punchRange = ResourceGatheringRules.PUNCH_RANGE;
+
+        float resourceX = (resource.tileX() + 0.5f) * tileSize;
+        float resourceY = (resource.tileY() + 0.5f) * tileSize;
 
         float dx = playerX - resourceX;
         float dy = playerY - resourceY;
 
-        if (dx * dx + dy * dy > 64f * 64f) {
+        if (dx * dx + dy * dy > punchRange * punchRange) {
             client.sendTCP(new AttackRequest(player.getInventory().getSelectedSlot(), mouseWorld.x, mouseWorld.y));
             return;
         }

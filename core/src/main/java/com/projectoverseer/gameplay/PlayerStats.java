@@ -1,6 +1,5 @@
 package com.projectoverseer.gameplay;
 
-import com.projectoverseer.PlayerRules;
 import com.projectoverseer.shared.combat.CombatRules;
 
 public final class PlayerStats {
