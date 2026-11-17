@@ -680,6 +680,7 @@ public class Main extends ApplicationAdapter {
         chunkManager.loadAround(chunkX, chunkY, CHUNK_LOAD_RADIUS);
 
         chunkManager.unloadOutside(chunkX, chunkY, CHUNK_UNLOAD_RADIUS);
+        System.out.println("CLIENT: Unloaded chunks outside radius " + CHUNK_UNLOAD_RADIUS + " from (" + chunkX + ", " + chunkY + ")");
 
         chunks = List.copyOf(chunkManager.getLoadedChunks());
 

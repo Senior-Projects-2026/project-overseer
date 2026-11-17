@@ -19,6 +19,7 @@ import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 import com.badlogic.gdx.utils.Disposable;
 import com.badlogic.gdx.utils.ScreenUtils;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
+import com.projectoverseer.Assets;
 import com.projectoverseer.config.ClientConfig;
 
 /**
@@ -33,9 +34,9 @@ public class MainMenu implements Disposable {
     private final Texture buttonOverTexture;
     private final Texture buttonDownTexture;
 
-    private final Sound backgroundMusic = Gdx.audio.newSound(Gdx.files.internal("sounds/background/menu_background.mp3"));
-    private final Sound buttonClickSound = Gdx.audio.newSound(Gdx.files.internal("sounds/sfx/menu_click.mp3"));
-    private final Sound buttonHoverSound = Gdx.audio.newSound(Gdx.files.internal("sounds/sfx/menu_button_hover.mp3"));
+    private final Sound backgroundMusic = Gdx.audio.newSound(Gdx.files.internal(Assets.MUSIC_MENU));
+    private final Sound buttonClickSound = Gdx.audio.newSound(Gdx.files.internal(Assets.SFX_MENU_CLICK));
+    private final Sound buttonHoverSound = Gdx.audio.newSound(Gdx.files.internal(Assets.SFX_MENU_HOVER));
 
     private final float musicVolume = ClientConfig.getFloat("audio.music.volume", 0.5f);
     private final float sfxVolume = ClientConfig.getFloat("audio.sfx.volume", 1.0f);

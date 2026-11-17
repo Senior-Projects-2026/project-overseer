@@ -9,6 +9,7 @@ import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Vector2;
 
+import com.projectoverseer.Assets;
 import com.projectoverseer.config.ClientConfig;
 import com.projectoverseer.gameplay.PlayerStats;
 import com.projectoverseer.gameplay.Inventory;
@@ -52,10 +53,10 @@ public class Player {
     private record HeldItemVisual(Texture texture, TextureRegion right, TextureRegion left) {}
 
     private static final Map<String, String> HELD_ITEM_ASSETS = Map.of(
-        "axe", "ui/items/axe.png",
-        "pickaxe", "ui/items/pickaxe.png",
+        "axe", Assets.ITEM_AXE,
+        "pickaxe", Assets.ITEM_PICKAXE,
         // The project's sword artwork is currently named dagger.png.
-        "sword", "ui/items/dagger.png"
+        "sword", Assets.ITEM_SWORD
     );
 
     public void setHeldItem(String itemId) {
@@ -75,7 +76,7 @@ public class Player {
     public Player(boolean localPlayer) {
         this.localPlayer = localPlayer;
         if (Gdx.app != null) {
-            spriteSheet = new Texture("player.png");
+            spriteSheet = new Texture(Assets.PLAYER_SPRITESHEET);
             for (Map.Entry<String, String> item : HELD_ITEM_ASSETS.entrySet()) {
                 Texture texture = new Texture(item.getValue());
                 texture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
