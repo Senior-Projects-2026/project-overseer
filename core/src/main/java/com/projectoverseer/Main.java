@@ -16,16 +16,14 @@ import com.esotericsoftware.kryonet.Client;
 import com.esotericsoftware.kryonet.Connection;
 import com.esotericsoftware.kryonet.Listener;
 
+import com.projectoverseer.config.ClientConfig;
 import com.projectoverseer.entities.Player;
 import com.projectoverseer.environment.DayNightRenderer;
 import com.projectoverseer.gameplay.Inventory;
 import com.projectoverseer.gameplay.ItemStack;
 import com.projectoverseer.shared.Network;
 import com.projectoverseer.shared.Network.*;
-import com.projectoverseer.shared.world.Chunk;
-import com.projectoverseer.shared.world.ChunkManager;
-import com.projectoverseer.shared.world.ResourceType;
-import com.projectoverseer.shared.world.WorldResource;
+import com.projectoverseer.shared.world.*;
 import com.projectoverseer.shared.world.generation.WorldGenerator;
 import com.projectoverseer.ui.CraftingMenu;
 import com.projectoverseer.ui.GameHUD;
@@ -65,8 +63,8 @@ public class Main extends ApplicationAdapter {
     private WorldObjectRenderer worldObjectRenderer;
 
     private ChunkManager chunkManager;
-    private static final int CHUNK_LOAD_RADIUS = 2;
-    private static final int CHUNK_UNLOAD_RADIUS = 3;
+    private static final int CHUNK_LOAD_RADIUS = ClientConfig.getInt("world.chunk.load.radius", 2);
+    private static final int CHUNK_UNLOAD_RADIUS = ClientConfig.getInt("world.chunk.unload.radius", 3);
     private int lastChunkX = Integer.MIN_VALUE;
     private int lastChunkY = Integer.MIN_VALUE;
     private List<Chunk> chunks;
@@ -87,7 +85,9 @@ public class Main extends ApplicationAdapter {
     public void create() {
         batch = new SpriteBatch();
         camera = new OrthographicCamera();
-        viewport = new FitViewport(640, 360, camera);
+        int camWidth = ClientConfig.getInt("camera.viewport.width", 640);
+        int camHeight = ClientConfig.getInt("camera.viewport.height", 360);
+        viewport = new FitViewport(camWidth, camHeight, camera);
         tileRenderer = new TileRenderer();
         worldObjectRenderer = new WorldObjectRenderer();
         chunks = List.of();
@@ -300,12 +300,13 @@ public class Main extends ApplicationAdapter {
                     disposeOtherPlayers();
 
                     if (gameState == GameState.VICTORY) {
+                        float victoryDisplaySec = ClientConfig.getFloat("ui.victory.display.seconds", 10f);
                         Timer.schedule(new Timer.Task() {
                             @Override
                             public void run() {
                                 showMenu("Victory! Ready for another round?");
                             }
-                        }, 10f);
+                        }, victoryDisplaySec);
                     } else {
                         showMenu(connectionError != null ? connectionError
                             : "Connection lost. Choose Play to reconnect.");
@@ -323,8 +324,14 @@ public class Main extends ApplicationAdapter {
         gameState = GameState.CONNECTING;
         connectionError = null;
         chunks = List.of();
-        menu.show("Connecting to " + Network.SERVER_HOST + "...");
+
+        String host = ClientConfig.getString("server.host", "localhost");
+        int tcpPort = ClientConfig.getInt("server.tcp.port", Network.TCP_PORT);
+        int udpPort = ClientConfig.getInt("server.udp.port", Network.UDP_PORT);
+        menu.show("Connecting to " + host + "...");
+
         // Keep connection status visible until Welcome has supplied the world seed.
+        float welcomeTimeoutSec = ClientConfig.getFloat("network.welcome.timeout.seconds", 10f);
         welcomeTimeout = Timer.schedule(new Timer.Task() {
             @Override
             public void run() {
@@ -334,11 +341,12 @@ public class Main extends ApplicationAdapter {
                     showMenu(connectionError);
                 }
             }
-        }, 10f);
+        }, welcomeTimeoutSec);
 
+        int connectTimeoutMs = ClientConfig.getInt("network.connect.timeout.ms", 5000);
         new Thread(() -> {
             try {
-                client.connect(5000, Network.SERVER_HOST, Network.TCP_PORT, Network.UDP_PORT);
+                client.connect(connectTimeoutMs, host, tcpPort, udpPort);
 
                 Ping myPing = new Ping();
                 myPing.message = "Hello Server, I am a new client!";
@@ -442,13 +450,16 @@ public class Main extends ApplicationAdapter {
         float playerX = player.getX() + 16f;
         float playerY = player.getY() + 16f;
 
-        float resourceX = (resource.tileX() + 0.5f) * 32f;
-        float resourceY = (resource.tileY() + 0.5f) * 32f;
+        float tileSize = ResourceGatheringRules.TILE_SIZE;
+        float punchRange = ResourceGatheringRules.PUNCH_RANGE;
+
+        float resourceX = (resource.tileX() + 0.5f) * tileSize;
+        float resourceY = (resource.tileY() + 0.5f) * tileSize;
 
         float dx = playerX - resourceX;
         float dy = playerY - resourceY;
 
-        if (dx * dx + dy * dy > 64f * 64f) {
+        if (dx * dx + dy * dy > punchRange * punchRange) {
             client.sendTCP(new AttackRequest(player.getInventory().getSelectedSlot(), mouseWorld.x, mouseWorld.y));
             return;
         }
@@ -505,8 +516,8 @@ public class Main extends ApplicationAdapter {
 
         for (Player other : otherPlayers.values()) other.update(chunks);
 
-        float deadzoneWidth = 100f;
-        float deadzoneHeight = 80f;
+        float deadzoneWidth = ClientConfig.getFloat("camera.deadzone.width", 100f);
+        float deadzoneHeight = ClientConfig.getFloat("camera.deadzone.height", 80f);
 
         float leftBoundary = camera.position.x - deadzoneWidth;
         float rightBoundary = camera.position.x + deadzoneWidth;
@@ -669,6 +680,7 @@ public class Main extends ApplicationAdapter {
         chunkManager.loadAround(chunkX, chunkY, CHUNK_LOAD_RADIUS);
 
         chunkManager.unloadOutside(chunkX, chunkY, CHUNK_UNLOAD_RADIUS);
+        System.out.println("CLIENT: Unloaded chunks outside radius " + CHUNK_UNLOAD_RADIUS + " from (" + chunkX + ", " + chunkY + ")");
 
         chunks = List.copyOf(chunkManager.getLoadedChunks());
 

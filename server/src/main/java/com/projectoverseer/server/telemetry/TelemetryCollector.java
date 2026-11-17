@@ -3,6 +3,7 @@ package com.projectoverseer.server.telemetry;
 import com.google.gson.Gson;
 import com.projectoverseer.gameplay.Inventory;
 import com.projectoverseer.server.combat.CombatPlayer;
+import com.projectoverseer.server.config.ServerConfig;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -18,8 +19,10 @@ import java.util.Map;
  * This acts as the "eyes" of the AI Director, keeping it informed without blocking the KryoNet server loop.
  */
 public class TelemetryCollector {
-    private static final String PYTHON_API_URL = "http://localhost:8000/evaluate";
-    private static final float COLLECTION_INTERVAL = 30f;
+    private static final String PYTHON_API_URL =
+        ServerConfig.getString("overseer.api.url", "http://localhost:8000/evaluate");
+    private static final float COLLECTION_INTERVAL =
+        ServerConfig.getFloat("overseer.collection.interval", 30f);
     // 5 minutes in nanoseconds (5 * 60 * 1 billion)
     private static final long FIVE_MINUTES_NS = 300_000_000_000L;
 

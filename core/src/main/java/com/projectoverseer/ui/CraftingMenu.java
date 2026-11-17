@@ -18,6 +18,7 @@ import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.utils.Disposable;
 
+import com.projectoverseer.Assets;
 import com.projectoverseer.gameplay.Inventory;
 import com.projectoverseer.shared.crafting.CraftingRecipe;
 
@@ -115,9 +116,9 @@ public final class CraftingMenu implements Disposable {
             CraftingRecipe recipe = recipes[i];
 
             String texturePath = switch (recipe) {
-                case AXE -> "ui/items/axe.png";
-                case PICKAXE -> "ui/items/pickaxe.png";
-                case SWORD -> "ui/items/dagger.png";
+                case AXE -> Assets.ITEM_AXE;
+                case PICKAXE -> Assets.ITEM_PICKAXE;
+                case SWORD -> Assets.ITEM_SWORD;
             };
 
             Texture texture = new Texture(

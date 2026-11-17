@@ -10,6 +10,7 @@ import com.projectoverseer.server.combat.CombatPlayer;
 import com.projectoverseer.server.combat.CombatSystem;
 import com.projectoverseer.server.combat.CombatTarget;
 import com.projectoverseer.server.combat.Knockback;
+import com.projectoverseer.server.config.ServerConfig;
 import com.projectoverseer.server.telemetry.TelemetryCollector;
 import com.projectoverseer.shared.combat.CombatConfig;
 import com.projectoverseer.gameplay.ItemStack;
@@ -39,41 +40,43 @@ public class ServerLauncher {
     private static Map<Integer, CombatPlayer> combatPlayers = new HashMap<>();
 
     // Server configuration
-    private static int serverSleepTime = 50;
-    private static float serverSyncInterval = 1f;
+    private static int serverSleepTime = ServerConfig.getInt("server.tick.sleep.ms", 50);
+    private static float serverSyncInterval = ServerConfig.getFloat("server.sync.interval", 1f);
 
     // Day-Night logic
     private static int day = 1;
     private static float timeTimer = 0;
-    private static float dayLengthSeconds = 100;
-    private static float nightThreshold = 0.7f;
-    private static int winThreshold = 30;
+    private static float dayLengthSeconds = ServerConfig.getFloat("gameplay.day.length.seconds", 100f);
+    private static float nightThreshold = ServerConfig.getFloat("gameplay.night.threshold", 0.7f);
+    private static int winThreshold = ServerConfig.getInt("gameplay.win.days", 30);
     private static boolean gameStarted = false;
 
     // Internal timers
     private static float syncTimer = 0f;
     private static long lastTime;
 
-    private static final int TREE_HITS_REQUIRED =
-        ResourceGatheringRules.damageRequired(ResourceType.TREE);
-    private static final int ROCK_HITS_REQUIRED =
-        ResourceGatheringRules.damageRequired(ResourceType.ROCK);
-    private static final float TILE_SIZE = 32f;
-    private static final float PUNCH_RANGE = 64f;
-
-    private static final long PUNCH_COOLDOWN_NS = 250_000_000L;
+    // Resource gathering constants (unified from shared)
+    private static final int TREE_HITS_REQUIRED = ResourceGatheringRules.damageRequired(ResourceType.TREE);
+    private static final int ROCK_HITS_REQUIRED = ResourceGatheringRules.damageRequired(ResourceType.ROCK);
+    private static final float TILE_SIZE = ResourceGatheringRules.TILE_SIZE;
+    private static final float PUNCH_RANGE = ResourceGatheringRules.PUNCH_RANGE;
+    private static final long PUNCH_COOLDOWN_NS =
+        ServerConfig.getLong("gameplay.punch.cooldown.ms", 250L) * 1_000_000L;
 
 
 
     public static void main(String[] args) throws IOException {
-        long worldSeed = Long.parseLong(Network.CONFIG.getProperty("world.seed", "123"));
+        long defaultSeed = Long.parseLong(Network.CONFIG.getProperty("world.seed", "123"));
+        long worldSeed = ServerConfig.getLong("world.seed", defaultSeed);
+        int tcpPort = ServerConfig.getInt("server.tcp.port", Network.TCP_PORT);
+        int udpPort = ServerConfig.getInt("server.udp.port", Network.UDP_PORT);
         worldGenerator = new WorldGenerator(worldSeed);
         worldChunks = new ArrayList<>(worldGenerator.generateInitialChunks());
         System.out.println("SERVER: World seed " + worldSeed + ", generator version "
             + WorldGenerator.VERSION + ", chunks " + worldChunks.size());
         Server server = new Server();
         Network.register(server);
-        server.bind(Network.TCP_PORT, Network.UDP_PORT);
+        server.bind(tcpPort, udpPort);
 
         players = new HashMap<>();
         playerInventories = new HashMap<>();
@@ -461,7 +464,7 @@ public class ServerLauncher {
         });
 
         server.start();
-        System.out.println("SERVER: Listening on TCP " + Network.TCP_PORT + " and UDP " + Network.UDP_PORT + "...");
+        System.out.println("SERVER: Listening on TCP " + tcpPort + " and UDP " + udpPort + "...");
 
         lastTime = System.nanoTime();
 

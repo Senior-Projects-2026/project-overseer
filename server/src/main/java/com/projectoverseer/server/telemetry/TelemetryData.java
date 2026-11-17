@@ -1,7 +1,9 @@
 package com.projectoverseer.server.telemetry;
 
+import com.projectoverseer.server.config.ServerConfig;
+
 public class TelemetryData {
-    public String match_id = "dev-match-1";
+    public String match_id = ServerConfig.getString("overseer.match.id", "dev-match-1");
     public int tick;
     public PlayerTelemetry players;
     public EnemyTelemetry enemies;

@@ -19,6 +19,8 @@ import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 import com.badlogic.gdx.utils.Disposable;
 import com.badlogic.gdx.utils.ScreenUtils;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
+import com.projectoverseer.Assets;
+import com.projectoverseer.config.ClientConfig;
 
 /**
  * The Scene2D user interface displayed before the player connects to a game.
@@ -32,9 +34,12 @@ public class MainMenu implements Disposable {
     private final Texture buttonOverTexture;
     private final Texture buttonDownTexture;
 
-    private final Sound backgroundMusic = Gdx.audio.newSound(Gdx.files.internal("sounds/background/menu_background.mp3"));
-    private final Sound buttonClickSound = Gdx.audio.newSound(Gdx.files.internal("sounds/sfx/menu_click.mp3"));
-    private final Sound buttonHoverSound = Gdx.audio.newSound(Gdx.files.internal("sounds/sfx/menu_button_hover.mp3"));
+    private final Sound backgroundMusic = Gdx.audio.newSound(Gdx.files.internal(Assets.MUSIC_MENU));
+    private final Sound buttonClickSound = Gdx.audio.newSound(Gdx.files.internal(Assets.SFX_MENU_CLICK));
+    private final Sound buttonHoverSound = Gdx.audio.newSound(Gdx.files.internal(Assets.SFX_MENU_HOVER));
+
+    private final float musicVolume = ClientConfig.getFloat("audio.music.volume", 0.5f);
+    private final float sfxVolume = ClientConfig.getFloat("audio.sfx.volume", 1.0f);
 
     public MainMenu(Runnable playAction) {
         stage = new Stage(new ScreenViewport());
@@ -64,7 +69,7 @@ public class MainMenu implements Disposable {
         playButton.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
-                buttonClickSound.play(1f);
+                buttonClickSound.play(sfxVolume);
                 playAction.run();
                 backgroundMusic.stop();
             }
@@ -74,7 +79,7 @@ public class MainMenu implements Disposable {
         exitButton.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
-                buttonClickSound.play(1f);
+                buttonClickSound.play(sfxVolume);
                 backgroundMusic.stop();
                 Gdx.app.exit();
             }
@@ -83,14 +88,14 @@ public class MainMenu implements Disposable {
         playButton.addListener(new InputListener() {
             @Override
             public void enter(InputEvent event, float x, float y, int pointer, Actor fromActor) {
-                buttonHoverSound.play(1f);
+                buttonHoverSound.play(sfxVolume);
             }
         });
 
         exitButton.addListener(new InputListener() {
             @Override
             public void enter(InputEvent event, float x, float y, int pointer, Actor fromActor) {
-                buttonHoverSound.play(1f);
+                buttonHoverSound.play(sfxVolume);
             }
         });
 
@@ -104,7 +109,7 @@ public class MainMenu implements Disposable {
         menu.add(statusLabel);
         stage.addActor(menu);
 
-        backgroundMusic.loop(0.5f);
+        backgroundMusic.loop(musicVolume);
 
     }
 
