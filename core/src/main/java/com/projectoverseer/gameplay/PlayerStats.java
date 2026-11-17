@@ -1,9 +1,12 @@
 package com.projectoverseer.gameplay;
 
+import com.projectoverseer.PlayerRules;
+import com.projectoverseer.shared.combat.CombatRules;
+
 public final class PlayerStats {
 
-    public static final int MAX_HEALTH = com.projectoverseer.shared.combat.CombatRules.PLAYER_MAX_HEALTH;
-    public static final int MAX_HUNGER = 20;
+    public static final int MAX_HEALTH = CombatRules.PLAYER_MAX_HEALTH;
+    public static final int MAX_HUNGER = PlayerRules.MAX_HUNGER;
 
     private int health = MAX_HEALTH;
     private int hunger = MAX_HUNGER;

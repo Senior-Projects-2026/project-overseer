@@ -9,6 +9,7 @@ import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Vector2;
 
+import com.projectoverseer.config.ClientConfig;
 import com.projectoverseer.gameplay.PlayerStats;
 import com.projectoverseer.gameplay.Inventory;
 import java.util.HashMap;
@@ -33,9 +34,9 @@ public class Player {
     private final PlayerStats stats = new PlayerStats();
     private final Inventory inventory = new Inventory();
 
-    private float x = 200;
-    private float y = 200;
-    private float speed = 100;
+    private float x = ClientConfig.getFloat("player.spawn.x", 200f);
+    private float y = ClientConfig.getFloat("player.spawn.y", 200f);
+    private float speed = ClientConfig.getFloat("player.movement.speed", 100f);
     private final Vector2 movement = new Vector2();
     private final boolean localPlayer;
     private int direction = DOWN;

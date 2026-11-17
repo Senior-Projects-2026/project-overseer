@@ -18,13 +18,12 @@ import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 import com.badlogic.gdx.utils.Disposable;
 import com.badlogic.gdx.utils.viewport.FitViewport;
+import com.projectoverseer.config.ClientConfig;
 import com.projectoverseer.gameplay.Inventory;
 import com.projectoverseer.gameplay.ItemStack;
 import com.projectoverseer.gameplay.PlayerStats;
 
 public final class GameHUD implements Disposable {
-
-
     private static final int ICON_COUNT = 10;
     private static final int ICON_SIZE = 13;
 
@@ -99,11 +98,12 @@ public final class GameHUD implements Disposable {
     public GameHUD(PlayerStats stats, Inventory inventory) {
         this.stats = stats;
         this.inventory = inventory;
-
-        stage = new Stage(new FitViewport(640, 360));
+        int viewportWidth = ClientConfig.getInt("ui.hud.viewport.width", 640);
+        int viewportHeight = ClientConfig.getInt("ui.hud.viewport.height", 360);
+        stage = new Stage(new FitViewport(viewportWidth, viewportHeight));
 
         font = new BitmapFont();
-        font.getData().setScale(0.65f);
+        font.getData().setScale(ClientConfig.getFloat("ui.hud.font.scale", 0.65f));
 
         heartIcons[EMPTY] = loadIcon(
             HUD_ASSET_PATH + "health/container.png", 0
