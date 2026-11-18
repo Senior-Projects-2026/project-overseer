@@ -63,15 +63,15 @@ public class ServerLauncher {
     private static Map<Integer, SurvivalPlayer> survivalPlayers = new HashMap<>();
 
     // Server configuration
-    private static int serverSleepTime = ServerConfig.getInt("server.tick.sleep.ms", 50);
-    private static float serverSyncInterval = ServerConfig.getFloat("server.sync.interval", 1f);
+    private static final int SERVER_SLEEP_TIME = ServerConfig.getInt("server.tick.sleep.ms", 50);
+    private static final  float SERVER_SYNC_INTERVAL = ServerConfig.getFloat("server.sync.interval", 1f);
 
     // Day-Night logic
     private static int day = 1;
     private static float timeTimer = 0;
-    private static float dayLengthSeconds = ServerConfig.getFloat("gameplay.day.length.seconds", 100f);
-    private static float nightThreshold = ServerConfig.getFloat("gameplay.night.threshold", 0.7f);
-    private static int winThreshold = ServerConfig.getInt("gameplay.win.days", 30);
+    private static final float DAY_LENGTH_SECONDS = ServerConfig.getFloat("gameplay.day.length.seconds", 100f);
+    private static final float NIGHT_THRESHOLD = ServerConfig.getFloat("gameplay.night.threshold", 0.7f);
+    private static final int WIN_THRESHOLD = ServerConfig.getInt("gameplay.win.days", 30);
     private static boolean gameStarted = false;
 
     // Internal timers
@@ -209,15 +209,13 @@ public class ServerLauncher {
                 }
 
                 if (!combatPlayer.isAlive()) return;
-                if (object instanceof Ping) {
-                    Ping ping = (Ping) object;
+                if (object instanceof Ping ping) {
                     System.out.println("SERVER: Received from client -> " + ping.message);
 
                     Ping response = new Ping();
                     response.message = "Pong from server, I hear you perfectly!";
                     connection.sendTCP(response);
-                } else if (object instanceof PositionUpdate) {
-                    PositionUpdate update = (PositionUpdate) object;
+                } else if (object instanceof PositionUpdate update) {
                     if (!combatPlayer.updatePosition(update.x, update.y, update.movementRevision)) return;
                     PlayerPosition position = new PlayerPosition(
                         connection.getID(), update.x, update.y, update.direction, update.moving);
@@ -237,7 +235,7 @@ public class ServerLauncher {
                     PlayerPosition position = players.get(id);
                     if (position == null) return;
                     AttackValidator.Swing swing = attacks.accept(id, playerInventories.get(id),
-                        position.x + 16f, position.y + 16f, gameStarted && day <= winThreshold,
+                        position.x + 16f, position.y + 16f, gameStarted && day <= WIN_THRESHOLD,
                         request, System.nanoTime());
                     if (swing == null) return;
                     AttackAccepted accepted = new AttackAccepted();
@@ -544,7 +542,7 @@ public class ServerLauncher {
             update(delta, server);
 
             try {
-                Thread.sleep(serverSleepTime); // Target ~20 TPS
+                Thread.sleep(SERVER_SLEEP_TIME); // Target ~20 TPS
             } catch (InterruptedException e) {
                 System.err.println("SERVER: Thread interrupted!");
                 Thread.currentThread().interrupt();
@@ -669,7 +667,7 @@ public class ServerLauncher {
         syncHunger(delta, server);
         syncStarvationHealth(delta, server);
 
-        boolean isNight = timeTimer > dayLengthSeconds * nightThreshold;
+        boolean isNight = timeTimer > DAY_LENGTH_SECONDS * NIGHT_THRESHOLD;
 
         // enemiesCount = 0 for now, because they are not implemented yet
         overseerTelemetry.update(delta, day, isNight, 0, combatPlayers, playerInventories);
@@ -677,13 +675,13 @@ public class ServerLauncher {
         timeTimer += delta;
         syncTimer += delta;
 
-        if (timeTimer >= dayLengthSeconds) {
+        if (timeTimer >= DAY_LENGTH_SECONDS) {
             timeTimer = 0;
             day++;
             System.out.println("SERVER: A new day begins! Day " + day);
         }
 
-        if (syncTimer >= serverSyncInterval) {
+        if (syncTimer >= SERVER_SYNC_INTERVAL) {
             syncTimer = 0f;
 
             TimeSync syncPacket = new TimeSync();
@@ -691,11 +689,11 @@ public class ServerLauncher {
             syncPacket.isNight = isNight;
             server.sendToAllTCP(syncPacket);
 
-            if (day > winThreshold) {
+            if (day > WIN_THRESHOLD) {
                 GameEnd endPacket = new GameEnd();
                 endPacket.isVictory = true;
                 server.sendToAllTCP(endPacket);
-                System.out.println("SERVER: " + winThreshold + " days survived. Victory packet sent!");
+                System.out.println("SERVER: " + WIN_THRESHOLD + " days survived. Victory packet sent!");
                 System.exit(0); // Close server when win is reached
             }
         }
