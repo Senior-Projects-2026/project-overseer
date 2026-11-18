@@ -35,6 +35,7 @@ import com.projectoverseer.shared.Network.GameEnd;
 import com.projectoverseer.shared.Network.InventorySync;
 import com.projectoverseer.shared.Network.Ping;
 import com.projectoverseer.shared.Network.PlayerHealth;
+import com.projectoverseer.shared.Network.PlayerHunger;
 import com.projectoverseer.shared.Network.PlayerLeft;
 import com.projectoverseer.shared.Network.PlayerPosition;
 import com.projectoverseer.shared.Network.PositionUpdate;
@@ -261,8 +262,14 @@ public class Main extends ApplicationAdapter {
                             Gdx.app.log("Combat", "Player respawned.");
                         }
                     });
-                }
-                else if (object instanceof AttackAccepted attack) {
+                    }else if (object instanceof PlayerHunger hunger) {
+                        Gdx.app.postRunnable(() -> {
+                            if (hunger.playerId != playerId || !isConnected) return;
+
+                            player.getStats().setHunger(Math.round(hunger.hunger / 5f));
+                            Gdx.app.log("Survival", "Hunger depleted: " + hunger.hunger);
+                        });
+                    }else if (object instanceof AttackAccepted attack) {
                     Gdx.app.postRunnable(() -> {
                         Player attacker;
                         if (attack.playerId == playerId) {

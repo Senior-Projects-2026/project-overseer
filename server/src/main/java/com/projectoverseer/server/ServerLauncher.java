@@ -86,9 +86,10 @@ public class ServerLauncher {
     private static final long PUNCH_COOLDOWN_NS =
         ServerConfig.getLong("gameplay.punch.cooldown.ms", 250L) * 1_000_000L;
 
-    // TODO : change these to use the server props
     private static float hungerSyncTimer = 0f;
-    private static final float HUNGER_SYNC_INTERVAL = 1f;
+    private static final float HUNGER_SYNC_INTERVAL = ServerConfig.getFloat("gameplay.hunger.sync.interval", 5f);
+    private static float starvationHealthSyncTimer = 0f;
+    private static final float STARVATION_HEALTH_SYNC_INTERVAL = ServerConfig.getFloat("gameplay.starvation.health.sync.interval", 1f);
 
 
 
@@ -623,12 +624,7 @@ public class ServerLauncher {
         }
     }
 
-    public static void update(float delta, Server server) {
-        if (!gameStarted || server.getConnections().isEmpty()) return;
-
-        handleDeadPlayers(survival.update(delta, survivalPlayers, combatPlayers), server);
-
-        // TODO : refactor this into a single function handlePlayerSyncHunder ro sum
+    private static void syncHunger(float delta, Server server) {
         hungerSyncTimer += delta;
 
         if (hungerSyncTimer >= HUNGER_SYNC_INTERVAL) {
@@ -644,6 +640,34 @@ public class ServerLauncher {
                 );
             }
         }
+    }
+
+    private static void syncStarvationHealth(float delta, Server server) {
+        starvationHealthSyncTimer += delta;
+
+        if (starvationHealthSyncTimer >= STARVATION_HEALTH_SYNC_INTERVAL) {
+            starvationHealthSyncTimer = 0f;
+
+            for (Map.Entry<Integer, SurvivalPlayer> entry : survivalPlayers.entrySet()) {
+                int playerId = entry.getKey();
+                SurvivalPlayer survivalPlayer = entry.getValue();
+                CombatPlayer combatPlayer = combatPlayers.get(playerId);
+
+                if (survivalPlayer.isStarving()
+                        && combatPlayer != null
+                        && combatPlayer.isAlive()) {
+                    server.sendToTCP(playerId, healthPacket(combatPlayer));
+                }
+            }
+        }
+    }
+
+    public static void update(float delta, Server server) {
+        if (!gameStarted || server.getConnections().isEmpty()) return;
+
+        handleDeadPlayers(survival.update(delta, survivalPlayers, combatPlayers), server);
+        syncHunger(delta, server);
+        syncStarvationHealth(delta, server);
 
         boolean isNight = timeTimer > dayLengthSeconds * nightThreshold;
 
