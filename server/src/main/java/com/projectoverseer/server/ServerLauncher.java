@@ -17,6 +17,8 @@ import com.projectoverseer.server.combat.CombatSystem;
 import com.projectoverseer.server.combat.CombatTarget;
 import com.projectoverseer.server.combat.Knockback;
 import com.projectoverseer.server.config.ServerConfig;
+import com.projectoverseer.server.survival.SurvivalPlayer;
+import com.projectoverseer.server.survival.SurvivalSystem;
 import com.projectoverseer.server.telemetry.TelemetryCollector;
 import com.projectoverseer.shared.Network;
 import com.projectoverseer.shared.Network.AttackAccepted;
@@ -57,6 +59,9 @@ public class ServerLauncher {
     private static Map<Integer, Inventory> playerInventories = new HashMap<>();
     private static Map<Integer, CombatPlayer> combatPlayers = new HashMap<>();
 
+    private static SurvivalSystem survival;
+    private static Map<Integer, SurvivalPlayer> survivalPlayers = new HashMap<>();
+
     // Server configuration
     private static int serverSleepTime = ServerConfig.getInt("server.tick.sleep.ms", 50);
     private static float serverSyncInterval = ServerConfig.getFloat("server.sync.interval", 1f);
@@ -81,6 +86,10 @@ public class ServerLauncher {
     private static final long PUNCH_COOLDOWN_NS =
         ServerConfig.getLong("gameplay.punch.cooldown.ms", 250L) * 1_000_000L;
 
+    // TODO : change these to use the server props
+    private static float hungerSyncTimer = 0f;
+    private static final float HUNGER_SYNC_INTERVAL = 1f;
+
 
 
     public static void main(String[] args) throws IOException {
@@ -101,6 +110,9 @@ public class ServerLauncher {
         AttackValidator attacks = new AttackValidator(CombatConfig.defaults());
         CombatSystem combat = new CombatSystem();
         combatPlayers = new HashMap<>();
+
+        survival = new SurvivalSystem();
+        survivalPlayers = new HashMap<>();
 
         overseerTelemetry = new TelemetryCollector();
 
@@ -132,6 +144,8 @@ public class ServerLauncher {
                 CombatPlayer combatPlayer = new CombatPlayer(playerId);
                 combatPlayers.put(playerId, combatPlayer);
                 combat.register(combatPlayer);
+                survivalPlayers.put(playerId, new SurvivalPlayer());
+
                 connection.sendTCP(healthPacket(combatPlayer));
                 playerInventories.put(
                     playerId,
@@ -169,6 +183,11 @@ public class ServerLauncher {
                     float spawnY = ServerConfig.getFloat("player.spawn.y", 200f);
 
                     combatPlayer.respawn(spawnX, spawnY);
+
+                    SurvivalPlayer survivalPlayer = survivalPlayers.get(playerId);
+                    if (survivalPlayer != null) {
+                        survivalPlayer.reset();
+                    }
 
                     PlayerPosition previous = players.get(playerId);
                     int direction = previous == null ? 0 : previous.direction;
@@ -484,6 +503,8 @@ public class ServerLauncher {
             @Override
             public void disconnected(Connection connection) {
                 CombatPlayer removed = combatPlayers.remove(connection.getID());
+                survivalPlayers.remove(connection.getID());
+                
                 if (removed != null) combat.remove(removed.combatId());
                 players.remove(connection.getID());
 
@@ -492,7 +513,7 @@ public class ServerLauncher {
                     recipient.sendTCP(left);
                 }
 
-                if (server.getConnections().size() == 0) {
+                if (server.getConnections().isEmpty()) {
                     gameStarted = false;
                     timeTimer = 0;
                     syncTimer = 0;
@@ -583,8 +604,46 @@ public class ServerLauncher {
         return false;
     }
 
+    private static void handleDeadPlayers(List<Integer> deadPlayers, Server server) {
+        for (int playerId : deadPlayers) {
+            overseerTelemetry.recordPlayerDeath();
+
+            PlayerPosition position = players.get(playerId);
+            if (position != null) {
+                position.moving = false;
+                server.sendToAllTCP(position);
+            }
+
+            CombatPlayer combatPlayer = combatPlayers.get(playerId);
+            if (combatPlayer != null) {
+                server.sendToTCP(playerId, healthPacket(combatPlayer));
+            }
+
+            System.out.println("SERVER: Player " + playerId + " died from starvation.");
+        }
+    }
+
     public static void update(float delta, Server server) {
-        if (!gameStarted || server.getConnections().size() == 0) return;
+        if (!gameStarted || server.getConnections().isEmpty()) return;
+
+        handleDeadPlayers(survival.update(delta, survivalPlayers, combatPlayers), server);
+
+        // TODO : refactor this into a single function handlePlayerSyncHunder ro sum
+        hungerSyncTimer += delta;
+
+        if (hungerSyncTimer >= HUNGER_SYNC_INTERVAL) {
+            hungerSyncTimer = 0f;
+
+            for (Map.Entry<Integer, SurvivalPlayer> entry : survivalPlayers.entrySet()) {
+                int playerId = entry.getKey();
+                float hunger = entry.getValue().hunger();
+
+                server.sendToTCP(
+                    playerId,
+                    new Network.PlayerHunger(playerId, hunger)
+                );
+            }
+        }
 
         boolean isNight = timeTimer > dayLengthSeconds * nightThreshold;
 

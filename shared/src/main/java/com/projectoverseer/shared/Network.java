@@ -64,6 +64,7 @@ public class Network {
         kryo.register(AttackRequest.class);
         kryo.register(AttackAccepted.class);
         kryo.register(PlayerHealth.class);
+        kryo.register(PlayerHunger.class);
         kryo.register(RespawnRequest.class);
     }
 
@@ -73,6 +74,18 @@ public class Network {
         public int playerId;
         public float health, x, y;
         public PlayerHealth() {}
+    }
+
+    public static class PlayerHunger {
+        public int playerId;
+        public float hunger;
+
+        public PlayerHunger() {}
+
+        public PlayerHunger(int playerId, float hunger) {
+            this.playerId = playerId;
+            this.hunger = hunger;
+        }
     }
 
     public static class AttackRequest {
