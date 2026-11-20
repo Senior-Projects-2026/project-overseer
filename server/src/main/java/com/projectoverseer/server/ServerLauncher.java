@@ -23,6 +23,8 @@ import com.projectoverseer.server.telemetry.TelemetryCollector;
 import com.projectoverseer.shared.Network;
 import com.projectoverseer.shared.Network.AttackAccepted;
 import com.projectoverseer.shared.Network.AttackRequest;
+import com.projectoverseer.shared.Network.BerryBushUpdated;
+import com.projectoverseer.shared.Network.CollectBerryBush;
 import com.projectoverseer.shared.Network.CraftRequest;
 import com.projectoverseer.shared.Network.CraftResult;
 import com.projectoverseer.shared.Network.GameEnd;
@@ -107,6 +109,7 @@ public class ServerLauncher {
         server.bind(tcpPort, udpPort);
 
         players = new HashMap<>();
+        // TODO : on death clear player inventory
         playerInventories = new HashMap<>();
         AttackValidator attacks = new AttackValidator(CombatConfig.defaults());
         CombatSystem combat = new CombatSystem();
@@ -124,7 +127,8 @@ public class ServerLauncher {
         Map<Long, Integer> rockHits = new HashMap<>();
         List<RockRemoved> destroyedRocks = new ArrayList<>();
 
-
+        List<BerryBushUpdated> depletedBerryBushes = new ArrayList<>();
+        
 
         server.addListener(new Listener() {
             @Override
@@ -169,6 +173,10 @@ public class ServerLauncher {
 
                 for (RockRemoved removed : destroyedRocks) {
                     connection.sendTCP(removed);
+                }
+
+                for (BerryBushUpdated updated : depletedBerryBushes) {
+                    connection.sendTCP(updated);
                 }
             }
 
@@ -467,6 +475,97 @@ public class ServerLauncher {
                             + punch.tileX + ", " + punch.tileY
                     );
                 }
+                
+else if (object instanceof CollectBerryBush collect) {
+    System.out.println("SERVER: Received berry collection request at "
+        + collect.tileX + ", " + collect.tileY);
+
+    int playerId = connection.getID();
+
+    PlayerPosition playerPosition = players.get(playerId);
+    if (playerPosition == null) {
+        System.out.println("SERVER: Player position not found");
+        return;
+    }
+
+    Chunk chunk = findChunk(collect.tileX, collect.tileY);
+    if (chunk == null) {
+        System.out.println("SERVER: Chunk not found");
+        return;
+    }
+
+    int localX = Chunk.localCoordinate(collect.tileX);
+    int localY = Chunk.localCoordinate(collect.tileY);
+
+    WorldResource resource = chunk.getResource(localX, localY);
+
+    if (resource == null) {
+        System.out.println("SERVER: Resource is null at local coordinates "
+            + localX + ", " + localY);
+        return;
+    }
+
+    if (resource.type() != ResourceType.BERRY_BUSH) {
+        System.out.println("SERVER: Wrong resource type: " + resource.type());
+        return;
+    }
+
+    if (resource.count() <= 0) {
+        System.out.println("SERVER: Bush has no berries: " + resource.count());
+        return;
+    }
+
+    float bushX = (collect.tileX + 0.5f) * TILE_SIZE;
+    float bushY = (collect.tileY + 0.5f) * TILE_SIZE;
+
+    float dx = playerPosition.x + 16f - bushX;
+    float dy = playerPosition.y + 16f - bushY;
+
+    float distanceSquared = dx * dx + dy * dy;
+
+    System.out.println("SERVER: Distance squared = " + distanceSquared
+        + ", allowed = " + (PUNCH_RANGE * PUNCH_RANGE));
+
+    if (distanceSquared > PUNCH_RANGE * PUNCH_RANGE) {
+        System.out.println("SERVER: Too far from bush");
+        return;
+    }
+
+    Inventory inventory = playerInventories.get(playerId);
+    int berryCount = resource.count();
+
+    if (inventory == null) {
+        System.out.println("SERVER: Inventory not found");
+        return;
+    }
+
+    if (!hasRoomFor(inventory, "berries", berryCount)) {
+        System.out.println("SERVER: Not enough inventory space");
+        return;
+    }
+
+    if (inventory.addItem("berries", berryCount) != 0) {
+        System.out.println("SERVER: Failed to add berries");
+        return;
+    }
+
+    chunk.setResource(localX, localY, ResourceType.BERRY_BUSH, 0);
+
+    sendInventorySync(connection, inventory);
+
+    BerryBushUpdated updated = new BerryBushUpdated(
+        collect.tileX,
+        collect.tileY,
+        0
+    );
+
+    depletedBerryBushes.add(updated);
+    server.sendToAllTCP(updated);
+
+    System.out.println("SERVER: Successfully collected "
+        + berryCount + " berries");
+}
+
                 else if (object instanceof CraftRequest request) {
 
                     int playerId = connection.getID();
@@ -602,6 +701,28 @@ public class ServerLauncher {
 
         return false;
     }
+
+    private static boolean hasRoomFor(
+            Inventory inventory,
+            String itemId,
+            int quantity
+        ) {
+            int available = 0;
+
+            for (int i = 0; i < Inventory.SLOT_COUNT; i++) {
+                ItemStack stack = inventory.getSlot(i);
+
+                if (stack == null) {
+                    available += 64;
+                } else if (stack.itemId().equals(itemId)) {
+                    available += 64 - stack.quantity();
+                }
+
+                if (available >= quantity) return true;
+            }
+
+            return false;
+        }
 
     private static void handleDeadPlayers(List<Integer> deadPlayers, Server server) {
         for (int playerId : deadPlayers) {

@@ -29,6 +29,8 @@ import com.projectoverseer.gameplay.ItemStack;
 import com.projectoverseer.shared.Network;
 import com.projectoverseer.shared.Network.AttackAccepted;
 import com.projectoverseer.shared.Network.AttackRequest;
+import com.projectoverseer.shared.Network.BerryBushUpdated;
+import com.projectoverseer.shared.Network.CollectBerryBush;
 import com.projectoverseer.shared.Network.CraftRequest;
 import com.projectoverseer.shared.Network.CraftResult;
 import com.projectoverseer.shared.Network.GameEnd;
@@ -108,7 +110,7 @@ public class Main extends ApplicationAdapter {
     private String connectionError;
 
     private final Set<Long> destroyedResources = new HashSet<>();
-
+    private final Set<Long> depletedBerryBushes = new HashSet<>();
 
     @Override
     public void create() {
@@ -241,6 +243,21 @@ public class Main extends ApplicationAdapter {
                     });
 
                 }
+                else if (object instanceof BerryBushUpdated updated) {
+                    Gdx.app.postRunnable(() -> {
+                        if (updated.count == 0) {
+                            depletedBerryBushes.add(
+                                resourceKey(updated.tileX, updated.tileY)
+                            );
+                        }
+
+                        updateBerryBushInWorld(
+                            updated.tileX,
+                            updated.tileY,
+                            updated.count
+                        );
+                    });
+                }
                 else if (object instanceof PlayerHealth health) {
                     Gdx.app.postRunnable(() -> {
                         if (health.playerId != playerId || !isConnected) return;
@@ -372,6 +389,7 @@ public class Main extends ApplicationAdapter {
             return;
         }
         destroyedResources.clear();
+        depletedBerryBushes.clear();
         gameState = GameState.CONNECTING;
         connectionError = null;
         chunks = List.of();
@@ -515,20 +533,23 @@ public class Main extends ApplicationAdapter {
             return;
         }
 
+        // dont fucking change this to a switch, game breaks the postioning system
         if (resource.type() == ResourceType.TREE) {
-
             client.sendTCP(new PunchTree(
                 resource.tileX(),
                 resource.tileY(),
                 player.getInventory().getSelectedSlot()
             ));
-
         } else if (resource.type() == ResourceType.ROCK) {
-
             client.sendTCP(new PunchRock(
                 resource.tileX(),
                 resource.tileY(),
                 player.getInventory().getSelectedSlot()
+            ));
+        } else if (resource.type() == ResourceType.BERRY_BUSH) {
+            client.sendTCP(new CollectBerryBush(
+                resource.tileX(),
+                resource.tileY()
             ));
         }
     }
@@ -647,26 +668,26 @@ public class Main extends ApplicationAdapter {
         }
     }
 
-    private void removeTreeFromWorld(int tileX, int tileY) {
-        destroyedResources.add(resourceKey(tileX, tileY));
-        int chunkX = Chunk.chunkCoordinate(tileX);
-        int chunkY = Chunk.chunkCoordinate(tileY);
-        for (Chunk chunk : chunks) {
+private void removeTreeFromWorld(int tileX, int tileY) {
+    destroyedResources.add(resourceKey(tileX, tileY));
+    int chunkX = Chunk.chunkCoordinate(tileX);
+    int chunkY = Chunk.chunkCoordinate(tileY);
+    for (Chunk chunk : chunks) {
             if (chunk.getChunkX() != chunkX
                 || chunk.getChunkY() != chunkY) {
-                continue;
-            }
-            int localX = Chunk.localCoordinate(tileX);
-            int localY = Chunk.localCoordinate(tileY);
+            continue;
+        }
+        int localX = Chunk.localCoordinate(tileX);
+        int localY = Chunk.localCoordinate(tileY);
             WorldResource resource =
                 chunk.getResource(localX, localY);
             if (resource != null
                 && resource.type() == ResourceType.TREE) {
-                chunk.removeResource(localX, localY);
+        chunk.removeResource(localX, localY);
             }
-            return;
-        }
+        return;
     }
+}
 
     private void removeRockFromWorld(int tileX, int tileY) {
         destroyedResources.add(resourceKey(tileX, tileY));
@@ -691,6 +712,23 @@ public class Main extends ApplicationAdapter {
 
                 chunk.removeResource(localX, localY);
             }
+            return;
+        }
+    }
+
+    private void updateBerryBushInWorld(int tileX, int tileY, int count) {
+        int chunkX = Chunk.chunkCoordinate(tileX);
+        int chunkY = Chunk.chunkCoordinate(tileY);
+
+        for (Chunk chunk : chunks) {
+            if (chunk.getChunkX() != chunkX || chunk.getChunkY() != chunkY) {
+                continue;
+            }
+
+            int localX = Chunk.localCoordinate(tileX);
+            int localY = Chunk.localCoordinate(tileY);
+
+            chunk.setResource(localX, localY, ResourceType.BERRY_BUSH, count);
             return;
         }
     }
@@ -747,12 +785,20 @@ public class Main extends ApplicationAdapter {
 
         for (Chunk chunk : chunks) {
             for (WorldResource resource : List.copyOf(chunk.getResources())) {
-                if (destroyedResources.contains(
-                    resourceKey(resource.tileX(), resource.tileY())
-                )) {
-                    chunk.removeResource(
-                        Chunk.localCoordinate(resource.tileX()),
-                        Chunk.localCoordinate(resource.tileY())
+                long key = resourceKey(resource.tileX(), resource.tileY());
+
+                int localX = Chunk.localCoordinate(resource.tileX());
+                int localY = Chunk.localCoordinate(resource.tileY());
+
+                if (destroyedResources.contains(key)) {
+                    chunk.removeResource(localX, localY);
+                } else if (resource.type() == ResourceType.BERRY_BUSH
+                    && depletedBerryBushes.contains(key)) {
+                    chunk.setResource(
+                        localX,
+                        localY,
+                        ResourceType.BERRY_BUSH,
+                        0
                     );
                 }
             }

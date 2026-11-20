@@ -55,6 +55,9 @@ public class Network {
         kryo.register(RockHit.class);
         kryo.register(RockRemoved.class);
 
+        kryo.register(CollectBerryBush.class);
+        kryo.register(BerryBushUpdated.class);
+
         kryo.register(String[].class);
         kryo.register(int[].class);
         kryo.register(InventorySync.class);
@@ -256,6 +259,32 @@ public class Network {
         public RockRemoved(int tileX, int tileY) {
             this.tileX = tileX;
             this.tileY = tileY;
+        }
+    }
+
+    public static class CollectBerryBush {
+        public int tileX;
+        public int tileY;
+
+        public CollectBerryBush() {}
+
+        public CollectBerryBush(int tileX, int tileY) {
+            this.tileX = tileX;
+            this.tileY = tileY;
+        }
+    }
+
+    public static class BerryBushUpdated {
+        public int tileX;
+        public int tileY;
+        public int count;
+
+        public BerryBushUpdated() {}
+
+        public BerryBushUpdated(int tileX, int tileY, int count) {
+            this.tileX = tileX;
+            this.tileY = tileY;
+            this.count = count;
         }
     }
 
