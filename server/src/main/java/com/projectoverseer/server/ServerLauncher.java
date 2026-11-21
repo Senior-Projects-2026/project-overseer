@@ -116,7 +116,6 @@ public class ServerLauncher {
         server.bind(tcpPort, udpPort);
 
         players = new HashMap<>();
-        // TODO : on death clear player inventory
         playerInventories = new HashMap<>();
         AttackValidator attacks = new AttackValidator(CombatConfig.defaults());
         CombatSystem combat = new CombatSystem();
@@ -281,6 +280,20 @@ public class ServerLauncher {
                             server.sendToTCP(victim.playerId(), healthPacket(victim));
                             if (!victim.isAlive()) {
                                 overseerTelemetry.recordPlayerDeath();
+                                Inventory inventory = playerInventories.get(victim.playerId());
+
+                                if (inventory != null) {
+                                    for (int i = 0; i < Inventory.SLOT_COUNT; i++) {
+                                        inventory.clearSlot(i);
+                                    }
+
+                                    for (Connection client : server.getConnections()) {
+                                        if (client.getID() == victim.playerId()) {
+                                            sendInventorySync(client, inventory);
+                                            break;
+                                        }
+                                    }
+                                }
 
                                 PlayerPosition stopped = players.get(victim.playerId());
                                 if (stopped != null) {
@@ -763,6 +776,26 @@ public class ServerLauncher {
         for (int playerId : deadPlayers) {
             overseerTelemetry.recordPlayerDeath();
 
+            Inventory inventory = playerInventories.get(playerId);
+
+            if (inventory != null) {
+                for (int i = 0; i < Inventory.SLOT_COUNT; i++) {
+                    inventory.clearSlot(i);
+                }
+
+                Connection connection = null;
+
+                for (Connection client : server.getConnections()) {
+                    if (client.getID() == playerId) {
+                        connection = client;
+                        break;
+                    }
+                }
+                if (connection != null) {
+                    sendInventorySync(connection, inventory);
+                }
+            }
+
             PlayerPosition position = players.get(playerId);
             if (position != null) {
                 position.moving = false;
@@ -774,7 +807,7 @@ public class ServerLauncher {
                 server.sendToTCP(playerId, healthPacket(combatPlayer));
             }
 
-            System.out.println("SERVER: Player " + playerId + " died from starvation.");
+            System.out.println("SERVER: Player " + playerId + " died.");
         }
     }
 
