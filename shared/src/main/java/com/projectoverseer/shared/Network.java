@@ -57,6 +57,7 @@ public class Network {
 
         kryo.register(CollectBerryBush.class);
         kryo.register(BerryBushUpdated.class);
+        kryo.register(ConsumeItemRequest.class);
 
         kryo.register(String[].class);
         kryo.register(int[].class);
@@ -285,6 +286,16 @@ public class Network {
             this.tileX = tileX;
             this.tileY = tileY;
             this.count = count;
+        }
+    }
+
+    public static class ConsumeItemRequest {
+        public int selectedSlot;
+
+        public ConsumeItemRequest() {}
+
+        public ConsumeItemRequest(int selectedSlot) {
+            this.selectedSlot = selectedSlot;
         }
     }
 

@@ -7,5 +7,7 @@ public interface SurvivalTarget {
 
     void update(float deltaTime);
 
+    void restoreHunger(float amount);
+
     void reset();
 }

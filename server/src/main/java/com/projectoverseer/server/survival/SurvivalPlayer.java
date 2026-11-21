@@ -26,4 +26,16 @@ public final class SurvivalPlayer implements SurvivalTarget {
     public void reset() {
         hunger = SurvivalRules.PLAYER_MAX_HUNGER;
     }
+
+    @Override
+    public void restoreHunger(float amount) {
+        if (amount <= 0 || !Float.isFinite(amount)) {
+            throw new IllegalArgumentException("Invalid hunger restoration");
+        }
+
+        hunger = Math.min(
+            SurvivalRules.PLAYER_MAX_HUNGER,
+            hunger + amount
+        );
+    }
 }

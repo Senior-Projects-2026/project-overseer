@@ -31,6 +31,7 @@ import com.projectoverseer.shared.Network.AttackAccepted;
 import com.projectoverseer.shared.Network.AttackRequest;
 import com.projectoverseer.shared.Network.BerryBushUpdated;
 import com.projectoverseer.shared.Network.CollectBerryBush;
+import com.projectoverseer.shared.Network.ConsumeItemRequest;
 import com.projectoverseer.shared.Network.CraftRequest;
 import com.projectoverseer.shared.Network.CraftResult;
 import com.projectoverseer.shared.Network.GameEnd;
@@ -554,6 +555,19 @@ public class Main extends ApplicationAdapter {
         }
     }
 
+    private void handleSecondaryAction() {
+        if (gameState != GameState.PLAYING
+            || player.getStats().getHealth() == 0
+            || !isConnected
+            || craftingMenu.isOpen()
+            || !Gdx.input.isButtonJustPressed(Input.Buttons.RIGHT)) {
+            return;
+        }
+
+        int selectedSlot = player.getInventory().getSelectedSlot();
+
+        client.sendTCP(new ConsumeItemRequest(selectedSlot));
+    }
 
     @Override
     public void render() {
@@ -622,6 +636,7 @@ public class Main extends ApplicationAdapter {
 
         camera.update();
         handlePrimaryAction();
+        handleSecondaryAction();
 
         // Making the entire screen black for black screen borders
         Gdx.gl.glClearColor(0, 0, 0, 1);

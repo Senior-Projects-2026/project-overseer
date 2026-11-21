@@ -457,7 +457,7 @@ public final class GameHUD implements Disposable {
                     itemImages[i].setVisible(true);
                     itemLabels[i].setText("");
 
-                } else if ("berries".equals(item.itemId())) {
+                } else if ("berry".equals(item.itemId())) {
 
                     itemImages[i].setDrawable(berryDrawable);
                     itemImages[i].setVisible(true);

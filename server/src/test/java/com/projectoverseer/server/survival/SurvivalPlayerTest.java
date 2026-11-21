@@ -76,4 +76,48 @@ class SurvivalPlayerTest {
             () -> survivalPlayer.update(Float.POSITIVE_INFINITY)
         );
     }
+
+    @Test
+    void shouldRestoreHunger() {
+        survivalPlayer.update(100f);
+
+        survivalPlayer.restoreHunger(4f);
+
+        assertEquals(94f, survivalPlayer.hunger(), 0.001f);
+        assertFalse(survivalPlayer.isStarving());
+    }
+
+    @Test
+    void shouldNotExceedMaximumHungerWhenRestoring() {
+        survivalPlayer.update(10f);
+
+        survivalPlayer.restoreHunger(10f);
+
+        assertEquals(SurvivalRules.PLAYER_MAX_HUNGER, survivalPlayer.hunger());
+    }
+
+    @Test
+    void shouldRestoreHungerFromZero() {
+        survivalPlayer.update(2000f);
+
+        survivalPlayer.restoreHunger(4f);
+
+        assertEquals(4f, survivalPlayer.hunger(), 0.001f);
+        assertFalse(survivalPlayer.isStarving());
+    }
+
+    @Test
+    void shouldRejectInvalidHungerRestoration() {
+        assertThrows(IllegalArgumentException.class,
+            () -> survivalPlayer.restoreHunger(0f));
+
+        assertThrows(IllegalArgumentException.class,
+            () -> survivalPlayer.restoreHunger(-1f));
+
+        assertThrows(IllegalArgumentException.class,
+            () -> survivalPlayer.restoreHunger(Float.NaN));
+
+        assertThrows(IllegalArgumentException.class,
+            () -> survivalPlayer.restoreHunger(Float.POSITIVE_INFINITY));
+    }
 }
