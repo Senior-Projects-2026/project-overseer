@@ -13,4 +13,5 @@ public interface CombatTarget {
     /** Apply a collision-checked server position; enemy adapters must update their entity here. */
     void moveTo(float x, float y);
     void respawn(float x, float y);
+    void restoreHealth(float amount);
 }

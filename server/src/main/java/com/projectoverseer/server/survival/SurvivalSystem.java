@@ -1,10 +1,10 @@
 package com.projectoverseer.server.survival;
 
-import com.projectoverseer.server.combat.CombatPlayer;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+
+import com.projectoverseer.server.combat.CombatPlayer;
 
 public class SurvivalSystem {
     public List<Integer> update(
@@ -24,6 +24,10 @@ public class SurvivalSystem {
             }
 
             survivalPlayer.update(deltaTime);
+
+            if (survivalPlayer.hunger() > SurvivalRules.HEALTH_REGENERATION_HUNGER_THRESHOLD) {
+                combatPlayer.restoreHealth(SurvivalRules.HEALTH_REGENERATION_RATE * deltaTime);
+            }
 
             if (survivalPlayer.isStarving()) {
                 combatPlayer.takeDamage(

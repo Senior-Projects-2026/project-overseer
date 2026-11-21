@@ -143,5 +143,6 @@ class CombatSystemTest {
         public void takeDamage(float amount) { damage += amount; hits++; }
         public void moveTo(float x, float y) {}
         public void respawn(float x, float y) {}
+        public void restoreHealth(float amount) {} // this is shit, since whenever we add new methods to Combat target we have to add it to this mf
     }
 }

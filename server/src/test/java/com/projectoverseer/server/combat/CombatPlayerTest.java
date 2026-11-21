@@ -2,6 +2,7 @@ package com.projectoverseer.server.combat;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.Test;
 
@@ -42,5 +43,39 @@ class CombatPlayerTest {
         player.respawn(200f, 200f);
 
         assertTrue(player.movementRevision() > previousRevision);
+    }
+
+    @Test
+    void restoreHealth() {
+        CombatPlayer player = new CombatPlayer(1);
+        player.takeDamage(20f);
+
+        player.restoreHealth(10f);
+
+        assertEquals(CombatRules.PLAYER_MAX_HEALTH - 10f, player.health());
+    }
+
+    @Test
+    void restoreHealthDoesNotExceedMaximum() {
+        CombatPlayer player = new CombatPlayer(1);
+        player.takeDamage(10f);
+
+        player.restoreHealth(20f);
+
+        assertEquals(CombatRules.PLAYER_MAX_HEALTH, player.health());
+    }
+
+    @Test
+    void restoreHealthRejectsInvalidAmounts() {
+        CombatPlayer player = new CombatPlayer(1);
+
+        assertThrows(IllegalArgumentException.class,
+            () -> player.restoreHealth(-1f));
+
+        assertThrows(IllegalArgumentException.class,
+            () -> player.restoreHealth(Float.NaN));
+
+        assertThrows(IllegalArgumentException.class,
+            () -> player.restoreHealth(Float.POSITIVE_INFINITY));
     }
 }

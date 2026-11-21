@@ -18,6 +18,7 @@ import com.projectoverseer.server.combat.CombatTarget;
 import com.projectoverseer.server.combat.Knockback;
 import com.projectoverseer.server.config.ServerConfig;
 import com.projectoverseer.server.survival.SurvivalPlayer;
+import com.projectoverseer.server.survival.SurvivalRules;
 import com.projectoverseer.server.survival.SurvivalSystem;
 import com.projectoverseer.server.telemetry.TelemetryCollector;
 import com.projectoverseer.shared.Network;
@@ -46,6 +47,7 @@ import com.projectoverseer.shared.Network.TreeHit;
 import com.projectoverseer.shared.Network.TreeRemoved;
 import com.projectoverseer.shared.Network.Welcome;
 import com.projectoverseer.shared.combat.CombatConfig;
+import com.projectoverseer.shared.combat.CombatRules;
 import com.projectoverseer.shared.crafting.CraftingRecipe;
 import com.projectoverseer.shared.items.FoodItem;
 import com.projectoverseer.shared.world.Chunk;
@@ -95,6 +97,8 @@ public class ServerLauncher {
     private static final float HUNGER_SYNC_INTERVAL = ServerConfig.getFloat("gameplay.hunger.sync.interval", 5f);
     private static float starvationHealthSyncTimer = 0f;
     private static final float STARVATION_HEALTH_SYNC_INTERVAL = ServerConfig.getFloat("gameplay.starvation.health.sync.interval", 1f);
+    private static float regenerationHealthSyncTimer = 0f;
+    private static final float REGENERATION_HEALTH_SYNC_INTERVAL = ServerConfig.getFloat("gameplay.regeneration.health.sync.interval", 0.5f);
 
 
 
@@ -619,7 +623,6 @@ public class ServerLauncher {
                     inventory.removeItem(stack.itemId(), 1);
                     survivalPlayer.restoreHunger(food.hungerRestoration());
 
-                    survivalPlayer.restoreHunger(food.hungerRestoration());
                     connection.sendTCP(new PlayerHunger(connection.getID(), survivalPlayer.hunger()));
                     sendInventorySync(connection, inventory);
 
@@ -813,12 +816,33 @@ public class ServerLauncher {
         }
     }
 
+    private static void syncRegenerationHealth(float delta, Server server) {
+        regenerationHealthSyncTimer += delta;
+
+        if (regenerationHealthSyncTimer >= REGENERATION_HEALTH_SYNC_INTERVAL) {
+            regenerationHealthSyncTimer = 0f;
+
+            for (Map.Entry<Integer, SurvivalPlayer> entry : survivalPlayers.entrySet()) {
+                int playerId = entry.getKey();
+                SurvivalPlayer survivalPlayer = entry.getValue();
+                CombatPlayer combatPlayer = combatPlayers.get(playerId);
+
+                if (survivalPlayer.hunger() > SurvivalRules.HEALTH_REGENERATION_HUNGER_THRESHOLD
+                        && combatPlayer.health() < CombatRules.PLAYER_MAX_HEALTH
+                        && combatPlayer.isAlive()) {
+                    server.sendToTCP(playerId, healthPacket(combatPlayer));
+                }
+            }
+        }
+    }
+
     public static void update(float delta, Server server) {
         if (!gameStarted || server.getConnections().isEmpty()) return;
 
         handleDeadPlayers(survival.update(delta, survivalPlayers, combatPlayers), server);
         syncHunger(delta, server);
         syncStarvationHealth(delta, server);
+        syncRegenerationHealth(delta, server);
 
         boolean isNight = timeTimer > DAY_LENGTH_SECONDS * NIGHT_THRESHOLD;
 
