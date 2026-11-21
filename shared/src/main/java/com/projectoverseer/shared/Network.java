@@ -1,12 +1,12 @@
 package com.projectoverseer.shared;
 
-import com.esotericsoftware.kryo.Kryo;
-import com.esotericsoftware.kryonet.EndPoint;
-
-import java.io.IOException;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.IOException;
 import java.util.Properties;
+
+import com.esotericsoftware.kryo.Kryo;
+import com.esotericsoftware.kryonet.EndPoint;
 
 public class Network {
     // 1. Constants and configuration
@@ -55,6 +55,10 @@ public class Network {
         kryo.register(RockHit.class);
         kryo.register(RockRemoved.class);
 
+        kryo.register(CollectBerryBush.class);
+        kryo.register(BerryBushUpdated.class);
+        kryo.register(ConsumeItemRequest.class);
+
         kryo.register(String[].class);
         kryo.register(int[].class);
         kryo.register(InventorySync.class);
@@ -64,7 +68,8 @@ public class Network {
         kryo.register(AttackRequest.class);
         kryo.register(AttackAccepted.class);
         kryo.register(PlayerHealth.class);
-
+        kryo.register(PlayerHunger.class);
+        kryo.register(RespawnRequest.class);
     }
 
     // 3. DTOs
@@ -73,6 +78,18 @@ public class Network {
         public int playerId;
         public float health, x, y;
         public PlayerHealth() {}
+    }
+
+    public static class PlayerHunger {
+        public int playerId;
+        public float hunger;
+
+        public PlayerHunger() {}
+
+        public PlayerHunger(int playerId, float hunger) {
+            this.playerId = playerId;
+            this.hunger = hunger;
+        }
     }
 
     public static class AttackRequest {
@@ -84,6 +101,10 @@ public class Network {
             this.aimX = aimX;
             this.aimY = aimY;
         }
+    }
+
+    public static class RespawnRequest {
+        public RespawnRequest() {}
     }
 
     /** Server-approved swing, also usable by the future animation system. */
@@ -239,6 +260,42 @@ public class Network {
         public RockRemoved(int tileX, int tileY) {
             this.tileX = tileX;
             this.tileY = tileY;
+        }
+    }
+
+    public static class CollectBerryBush {
+        public int tileX;
+        public int tileY;
+
+        public CollectBerryBush() {}
+
+        public CollectBerryBush(int tileX, int tileY) {
+            this.tileX = tileX;
+            this.tileY = tileY;
+        }
+    }
+
+    public static class BerryBushUpdated {
+        public int tileX;
+        public int tileY;
+        public int count;
+
+        public BerryBushUpdated() {}
+
+        public BerryBushUpdated(int tileX, int tileY, int count) {
+            this.tileX = tileX;
+            this.tileY = tileY;
+            this.count = count;
+        }
+    }
+
+    public static class ConsumeItemRequest {
+        public int selectedSlot;
+
+        public ConsumeItemRequest() {}
+
+        public ConsumeItemRequest(int selectedSlot) {
+            this.selectedSlot = selectedSlot;
         }
     }
 

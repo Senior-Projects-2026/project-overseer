@@ -1,13 +1,15 @@
 package com.projectoverseer.world;
 
-import com.projectoverseer.shared.world.ResourceType;
-import com.projectoverseer.shared.world.WorldResource;
-import org.junit.Test;
-
 import java.util.HashSet;
 import java.util.Set;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+import org.junit.Test;
+
+import com.projectoverseer.shared.world.ResourceType;
+import com.projectoverseer.shared.world.WorldResource;
 
 public class ResourceAppearanceTest {
     @Test
@@ -42,5 +44,30 @@ public class ResourceAppearanceTest {
         assertEquals(Set.of(0, 1, 2), variants);
         int extreme = ResourceAppearance.rockVariant(Integer.MIN_VALUE, Integer.MAX_VALUE);
         assertTrue(extreme >= 0 && extreme < 3);
+    }
+
+    @Test
+    public void berryBushUsesTileSizedPlacement() {
+        var placement = ResourceAppearance.placement(
+            new WorldResource(ResourceType.BERRY_BUSH, 3, 5)
+        );
+
+        assertEquals(32f, placement.width(), 0f);
+        assertEquals(32f, placement.height(), 0f);
+        assertEquals(112f, placement.x() + placement.width() / 2, 0f);
+        assertEquals(176f, placement.groundY(), 0f);
+        assertEquals(placement.groundY() - 4f, placement.y(), 0f);
+    }
+
+    @Test
+    public void berryBushPlacementSupportsNegativeCoordinates() {
+        var placement = ResourceAppearance.placement(
+            new WorldResource(ResourceType.BERRY_BUSH, -1, -2)
+        );
+
+        assertEquals(32f, placement.width(), 0f);
+        assertEquals(32f, placement.height(), 0f);
+        assertEquals(-16f, placement.x() + placement.width() / 2, 0f);
+        assertEquals(-48f, placement.groundY(), 0f);
     }
 }

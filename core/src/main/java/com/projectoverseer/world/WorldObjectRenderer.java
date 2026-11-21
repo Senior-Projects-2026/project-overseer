@@ -1,22 +1,21 @@
 package com.projectoverseer.world;
 
-import com.badlogic.gdx.utils.LongMap;
-import com.badlogic.gdx.utils.TimeUtils;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.utils.Disposable;
+import com.badlogic.gdx.utils.LongMap;
+import com.badlogic.gdx.utils.TimeUtils;
 import com.projectoverseer.Assets;
 import com.projectoverseer.entities.Player;
 import com.projectoverseer.shared.world.Chunk;
 import com.projectoverseer.shared.world.ResourceType;
 import com.projectoverseer.shared.world.WorldResource;
-
-
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
 
 /** Draws resources and all players in a common back-to-front ground-Y order. */
 public final class WorldObjectRenderer implements Disposable {
@@ -24,6 +23,8 @@ public final class WorldObjectRenderer implements Disposable {
     private final List<DrawEntry> entries = new ArrayList<>();
     private final TextureRegion tree;
     private final TextureRegion[] rocks;
+    private final TextureRegion berryBush;
+    private final TextureRegion depletedBush;
     private static final float TREE_SHAKE_DURATION = 0.18f;
     private static final float TREE_SHAKE_OFFSET = 2f;
     private final LongMap<Long> shakingTrees = new LongMap<>();
@@ -38,6 +39,8 @@ public final class WorldObjectRenderer implements Disposable {
                 load(Assets.WORLD_ROCK_2, 48, 228, 1440, 684),
                 load(Assets.WORLD_ROCK_3, 234, 173, 1080, 708)
             };
+            berryBush = load(Assets.WORLD_BERRY_BUSH, 0, 0, 500, 500);
+            depletedBush = load(Assets.WORLD_BUSH, 0, 0, 500, 500);
         } catch (RuntimeException e) {
             dispose();
             throw e;
@@ -63,8 +66,18 @@ public final class WorldObjectRenderer implements Disposable {
                 // Test the whole sprite, not its anchor tile: a canopy can remain on
                 // screen even when the trunk's tile or chunk is outside the view.
                 if (!placement.intersects(view)) continue;
-                TextureRegion region = resource.type() == ResourceType.TREE ? tree
-                    : rocks[ResourceAppearance.rockVariant(resource.tileX(), resource.tileY())];
+                TextureRegion region;
+
+                if (resource.type() == ResourceType.TREE) {
+                    region = tree;
+                } else if (resource.type() == ResourceType.ROCK) {
+                    region = rocks[ResourceAppearance.rockVariant(
+                        resource.tileX(),
+                        resource.tileY()
+                    )];
+                } else {
+                    region = resource.count() > 0 ? berryBush : depletedBush;
+                }
 
 
                 float drawX = placement.x();
