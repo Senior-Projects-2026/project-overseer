@@ -1,3 +1,4 @@
+
 package com.projectoverseer.server.survival;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -17,7 +18,7 @@ class SurvivalPlayerTest {
 
     @Test
     void shouldStartWithMaximumHunger() {
-        assertEquals(SurvivalRules.PLAYER_MAX_HUNGER, survivalPlayer.hunger());
+        assertEquals(20f, survivalPlayer.hunger());
         assertFalse(survivalPlayer.isStarving());
     }
 
@@ -25,7 +26,7 @@ class SurvivalPlayerTest {
     void shouldDepleteHungerOverTime() {
         survivalPlayer.update(10f);
 
-        assertEquals(99f, survivalPlayer.hunger(), 0.001f);
+        assertEquals(19f, survivalPlayer.hunger(), 0.001f);
         assertFalse(survivalPlayer.isStarving());
     }
 
@@ -48,11 +49,11 @@ class SurvivalPlayerTest {
 
     @Test
     void shouldResetHunger() {
-        survivalPlayer.update(500f);
+        survivalPlayer.update(50f);
 
         survivalPlayer.reset();
 
-        assertEquals(SurvivalRules.PLAYER_MAX_HUNGER, survivalPlayer.hunger());
+        assertEquals(20f, survivalPlayer.hunger());
         assertFalse(survivalPlayer.isStarving());
     }
 
@@ -83,7 +84,7 @@ class SurvivalPlayerTest {
 
         survivalPlayer.restoreHunger(4f);
 
-        assertEquals(94f, survivalPlayer.hunger(), 0.001f);
+        assertEquals(14f, survivalPlayer.hunger(), 0.001f);
         assertFalse(survivalPlayer.isStarving());
     }
 
@@ -93,7 +94,7 @@ class SurvivalPlayerTest {
 
         survivalPlayer.restoreHunger(10f);
 
-        assertEquals(SurvivalRules.PLAYER_MAX_HUNGER, survivalPlayer.hunger());
+        assertEquals(20f, survivalPlayer.hunger());
     }
 
     @Test

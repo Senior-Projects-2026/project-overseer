@@ -192,6 +192,8 @@ public class ServerLauncher {
                 if (combatPlayer == null) return;
 
                 if (object instanceof RespawnRequest) {
+                    if(combatPlayer.isAlive()) return;
+
                     int playerId = connection.getID();
 
                     float spawnX = ServerConfig.getFloat("player.spawn.x", 200f);
@@ -217,6 +219,7 @@ public class ServerLauncher {
 
                     server.sendToAllTCP(position);
                     connection.sendTCP(healthPacket(combatPlayer));
+                    if(survivalPlayer != null) connection.sendTCP(new PlayerHunger(playerId, survivalPlayer.hunger()));
 
                     System.out.println("SERVER: Player " + playerId + " respawned.");
                     return;
@@ -755,15 +758,16 @@ public class ServerLauncher {
             String itemId,
             int quantity
         ) {
+            int maxStack = ItemStack.maxStackSize(itemId);
             int available = 0;
 
             for (int i = 0; i < Inventory.SLOT_COUNT; i++) {
                 ItemStack stack = inventory.getSlot(i);
 
                 if (stack == null) {
-                    available += 64;
+                    available += maxStack;
                 } else if (stack.itemId().equals(itemId)) {
-                    available += 64 - stack.quantity();
+                    available += maxStack - stack.quantity();
                 }
 
                 if (available >= quantity) return true;
@@ -861,7 +865,8 @@ public class ServerLauncher {
                 CombatPlayer combatPlayer = combatPlayers.get(playerId);
 
                 if (survivalPlayer.hunger() > SurvivalRules.HEALTH_REGENERATION_HUNGER_THRESHOLD
-                        && combatPlayer.health() < CombatRules.PLAYER_MAX_HEALTH
+                        && combatPlayer != null
+                        && combatPlayer.health() <= CombatRules.PLAYER_MAX_HEALTH
                         && combatPlayer.isAlive()) {
                     server.sendToTCP(playerId, healthPacket(combatPlayer));
                 }

@@ -270,6 +270,7 @@ public class Main extends ApplicationAdapter {
                             Gdx.app.log("Combat", "Death detected. Current state: " + gameState);
                             player.setRemoteState(health.x, health.y, player.getDirection(), false);
                             gameState = GameState.DEAD;
+                            craftingMenu.hide();
                             respawnScreen.show();
                             Gdx.app.log("Combat", "Player died. Waiting for respawn.");
                         } else if (health.health > 0 && gameState == GameState.DEAD) {
@@ -284,7 +285,8 @@ public class Main extends ApplicationAdapter {
                         Gdx.app.postRunnable(() -> {
                             if (hunger.playerId != playerId || !isConnected) return;
 
-                            player.getStats().setHunger(Math.round(hunger.hunger / 5f));
+                            player.getStats().setHunger(Math.round(hunger.hunger));
+
                             Gdx.app.log("Survival", "Hunger depleted: " + hunger.hunger);
                         });
                     }else if (object instanceof AttackAccepted attack) {
@@ -534,7 +536,7 @@ public class Main extends ApplicationAdapter {
             return;
         }
 
-        // dont fucking change this to a switch, game breaks the postioning system
+        // dont change this to a switch, game breaks the postioning system
         if (resource.type() == ResourceType.TREE) {
             client.sendTCP(new PunchTree(
                 resource.tileX(),

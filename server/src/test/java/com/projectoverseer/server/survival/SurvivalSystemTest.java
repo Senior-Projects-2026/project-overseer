@@ -1,3 +1,4 @@
+
 package com.projectoverseer.server.survival;
 
 import java.util.HashMap;
@@ -45,15 +46,20 @@ class SurvivalSystemTest {
             survivalPlayer.hunger(),
             0.001f
         );
-        assertEquals(initialHealth, combatPlayer.health());
+        assertEquals(initialHealth, combatPlayer.health(), 0.001f);
     }
 
     @Test
     void shouldDamagePlayerWhenHungerReachesZero() {
+        survivalSystem.update(21f, survivalPlayers, combatPlayers);
+
+        combatPlayer.takeDamage(5f);
         float initialHealth = combatPlayer.health();
 
-        survivalSystem.update(999f, survivalPlayers, combatPlayers);
-        assertEquals(initialHealth, combatPlayer.health());
+        survivalSystem.update(178f, survivalPlayers, combatPlayers);
+
+        assertEquals(0.1f, survivalPlayer.hunger(), 0.001f);
+        assertEquals(initialHealth, combatPlayer.health(), 0.001f);
 
         survivalSystem.update(1f, survivalPlayers, combatPlayers);
 
@@ -67,7 +73,7 @@ class SurvivalSystemTest {
 
     @Test
     void shouldReportPlayerDeathFromStarvation() {
-        survivalSystem.update(999f, survivalPlayers, combatPlayers);
+        survivalSystem.update(199f, survivalPlayers, combatPlayers);
 
         List<Integer> deadPlayers = List.of();
 
@@ -97,79 +103,70 @@ class SurvivalSystemTest {
 
         assertEquals(
             SurvivalRules.PLAYER_MAX_HUNGER,
-            survivalPlayer.hunger()
+            survivalPlayer.hunger(),
+            0.001f
         );
     }
 
     @Test
     void shouldRegenerateHealthWhenHungerIsFull() {
         combatPlayer.takeDamage(10f);
+        float damagedHealth = combatPlayer.health();
 
         survivalSystem.update(1f, survivalPlayers, combatPlayers);
 
         assertEquals(
-            CombatRules.PLAYER_MAX_HEALTH - 10f
-                + SurvivalRules.HEALTH_REGENERATION_RATE,
+            damagedHealth + SurvivalRules.HEALTH_REGENERATION_RATE,
             combatPlayer.health(),
             0.001f
         );
     }
 
     @Test
-    public void shouldRegenerateHealthWhenHungerIsAboveThreshold() {
-        SurvivalPlayer player = new SurvivalPlayer();
-        player.update(50f);
+    void shouldRegenerateHealthWhenHungerIsAboveThreshold() {
+        survivalPlayer.update(10f); // Hunger: 19
+        combatPlayer.takeDamage(10f);
+        float damagedHealth = combatPlayer.health();
 
-        CombatPlayer combat = new CombatPlayer(1);
-        combat.takeDamage(CombatRules.PLAYER_MAX_HEALTH / 2f);
+        survivalSystem.update(1f, survivalPlayers, combatPlayers);
 
-        SurvivalSystem system = new SurvivalSystem();
-        system.update(1f, Map.of(1, player), Map.of(1, combat));
-
+        assertEquals(18.9f, survivalPlayer.hunger(), 0.001f);
         assertEquals(
-            CombatRules.PLAYER_MAX_HEALTH / 2f + SurvivalRules.HEALTH_REGENERATION_RATE,
-            combat.health(),
+            damagedHealth + SurvivalRules.HEALTH_REGENERATION_RATE,
+            combatPlayer.health(),
             0.001f
         );
     }
 
     @Test
-    public void shouldNotRegenerateHealthWhenHungerIsAtThreshold() {
-        SurvivalPlayer survivalPlayer1 = new SurvivalPlayer();
-        survivalPlayer1.update(100f); // Hunger: 90
+    void shouldNotRegenerateHealthWhenHungerIsAtThreshold() {
+        survivalPlayer.update(20f); // Hunger: 18
+        combatPlayer.takeDamage(10f);
+        float damagedHealth = combatPlayer.health();
 
-        CombatPlayer combatPlayer1 = new CombatPlayer(1);
-        combatPlayer1.takeDamage(10f);
+        survivalSystem.update(0f, survivalPlayers, combatPlayers);
 
-        SurvivalSystem system = new SurvivalSystem();
-
-        system.update(1f, Map.of(1, survivalPlayer1), Map.of(1, combatPlayer1));
-
-        assertEquals(CombatRules.PLAYER_MAX_HEALTH - 10f,
-                combatPlayer1.health(), 0.001f);
+        assertEquals(18f, survivalPlayer.hunger(), 0.001f);
+        assertEquals(damagedHealth, combatPlayer.health(), 0.001f);
     }
 
     @Test
-    public void shouldNotRegenerateHealthWhenHungerIsBelowThreshold() {
-        SurvivalPlayer survivalPlayer1 = new SurvivalPlayer();
-        survivalPlayer1.update(110f); // Hunger: 89
+    void shouldNotRegenerateHealthWhenHungerIsBelowThreshold() {
+        survivalPlayer.update(110f); // Hunger: 9
+        combatPlayer.takeDamage(10f);
+        float damagedHealth = combatPlayer.health();
 
-        CombatPlayer combatPlayer1 = new CombatPlayer(1);
-        combatPlayer1.takeDamage(10f);
+        survivalSystem.update(1f, survivalPlayers, combatPlayers);
 
-        SurvivalSystem system = new SurvivalSystem();
-
-        system.update(1f, Map.of(1, survivalPlayer1), Map.of(1, combatPlayer1));
-
-        assertEquals(CombatRules.PLAYER_MAX_HEALTH - 10f,
-                combatPlayer1.health(), 0.001f);
+        assertEquals(8.9f, survivalPlayer.hunger(), 0.001f);
+        assertEquals(damagedHealth, combatPlayer.health(), 0.001f);
     }
 
     @Test
     void shouldNotRegenerateHealthBeyondMaximum() {
         survivalSystem.update(1f, survivalPlayers, combatPlayers);
 
-        assertEquals(CombatRules.PLAYER_MAX_HEALTH, combatPlayer.health());
+        assertEquals(CombatRules.PLAYER_MAX_HEALTH, combatPlayer.health(), 0.001f);
     }
 
     @Test
@@ -178,6 +175,6 @@ class SurvivalSystemTest {
 
         survivalSystem.update(1f, survivalPlayers, combatPlayers);
 
-        assertEquals(0f, combatPlayer.health());
+        assertEquals(0f, combatPlayer.health(), 0.001f);
     }
 }
