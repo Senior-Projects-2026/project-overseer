@@ -1,9 +1,11 @@
 package com.projectoverseer.gameplay;
 
+import com.projectoverseer.shared.combat.CombatRules;
+
 public final class PlayerStats {
 
-    public static final int MAX_HEALTH = 20; //minecraft like health/hunger system cus i like minecraft and u should too
-    public static final int MAX_HUNGER = 20;
+    public static final int MAX_HEALTH = CombatRules.PLAYER_MAX_HEALTH;
+    public static final int MAX_HUNGER = PlayerRules.MAX_HUNGER;
 
     private int health = MAX_HEALTH;
     private int hunger = MAX_HUNGER;

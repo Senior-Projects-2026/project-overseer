@@ -1,5 +1,7 @@
 package com.projectoverseer.server.ai;
 
+import com.projectoverseer.server.config.ServerConfig;
+
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -15,7 +17,7 @@ public class AiSystem {
     /**
      * Target scanning is relatively expensive, so it runs a few times per second, not every tick.
      */
-    private static final float SCAN_INTERVAL = 0.3f;
+    private static final float SCAN_INTERVAL = ServerConfig.getFloat("ai.scan.interval", 0.3f);
 
     private final List<AiEntity> entities = new ArrayList<>();
     private float scanTimer;

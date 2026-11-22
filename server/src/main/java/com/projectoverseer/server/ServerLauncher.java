@@ -5,6 +5,14 @@ import com.esotericsoftware.kryonet.Listener;
 import com.esotericsoftware.kryonet.Server;
 
 import com.projectoverseer.gameplay.Inventory;
+import com.projectoverseer.server.combat.AttackValidator;
+import com.projectoverseer.server.combat.CombatPlayer;
+import com.projectoverseer.server.combat.CombatSystem;
+import com.projectoverseer.server.combat.CombatTarget;
+import com.projectoverseer.server.combat.Knockback;
+import com.projectoverseer.server.config.ServerConfig;
+import com.projectoverseer.server.telemetry.TelemetryCollector;
+import com.projectoverseer.shared.combat.CombatConfig;
 import com.projectoverseer.gameplay.ItemStack;
 import com.projectoverseer.shared.Network;
 import com.projectoverseer.shared.Network.*;
@@ -25,51 +33,62 @@ import java.util.Map;
 public class ServerLauncher {
     private static List<Chunk> worldChunks;
     private static WorldGenerator worldGenerator;
+    private static TelemetryCollector overseerTelemetry;
+
+    private static Map<Integer, PlayerPosition> players = new HashMap<>();
+    private static Map<Integer, Inventory> playerInventories = new HashMap<>();
+    private static Map<Integer, CombatPlayer> combatPlayers = new HashMap<>();
 
     // Server configuration
-    private static int serverSleepTime = 50;
-    private static float serverSyncInterval = 1f;
+    private static int serverSleepTime = ServerConfig.getInt("server.tick.sleep.ms", 50);
+    private static float serverSyncInterval = ServerConfig.getFloat("server.sync.interval", 1f);
 
     // Day-Night logic
     private static int day = 1;
     private static float timeTimer = 0;
-    private static float dayLengthSeconds = 10;
-    private static float nightThreshold = 0.7f;
-    private static int winThreshold = 30;
+    private static float dayLengthSeconds = ServerConfig.getFloat("gameplay.day.length.seconds", 100f);
+    private static float nightThreshold = ServerConfig.getFloat("gameplay.night.threshold", 0.7f);
+    private static int winThreshold = ServerConfig.getInt("gameplay.win.days", 30);
     private static boolean gameStarted = false;
 
     // Internal timers
     private static float syncTimer = 0f;
     private static long lastTime;
 
-    private static final int TREE_HITS_REQUIRED =
-        ResourceGatheringRules.damageRequired(ResourceType.TREE);
-    private static final int ROCK_HITS_REQUIRED =
-        ResourceGatheringRules.damageRequired(ResourceType.ROCK);
-    private static final float TILE_SIZE = 32f;
-    private static final float PUNCH_RANGE = 64f;
-
-    private static final long PUNCH_COOLDOWN_NS = 250_000_000L;
+    // Resource gathering constants (unified from shared)
+    private static final int TREE_HITS_REQUIRED = ResourceGatheringRules.damageRequired(ResourceType.TREE);
+    private static final int ROCK_HITS_REQUIRED = ResourceGatheringRules.damageRequired(ResourceType.ROCK);
+    private static final float TILE_SIZE = ResourceGatheringRules.TILE_SIZE;
+    private static final float PUNCH_RANGE = ResourceGatheringRules.PUNCH_RANGE;
+    private static final long PUNCH_COOLDOWN_NS =
+        ServerConfig.getLong("gameplay.punch.cooldown.ms", 250L) * 1_000_000L;
 
 
 
     public static void main(String[] args) throws IOException {
-        long worldSeed = Long.parseLong(Network.CONFIG.getProperty("world.seed", "123"));
+        long defaultSeed = Long.parseLong(Network.CONFIG.getProperty("world.seed", "123"));
+        long worldSeed = ServerConfig.getLong("world.seed", defaultSeed);
+        int tcpPort = ServerConfig.getInt("server.tcp.port", Network.TCP_PORT);
+        int udpPort = ServerConfig.getInt("server.udp.port", Network.UDP_PORT);
         worldGenerator = new WorldGenerator(worldSeed);
         worldChunks = new ArrayList<>(worldGenerator.generateInitialChunks());
         System.out.println("SERVER: World seed " + worldSeed + ", generator version "
             + WorldGenerator.VERSION + ", chunks " + worldChunks.size());
         Server server = new Server();
         Network.register(server);
-        server.bind(Network.TCP_PORT, Network.UDP_PORT);
+        server.bind(tcpPort, udpPort);
 
-        Map<Integer, PlayerPosition> players = new HashMap<>();
-        Map<Integer, Inventory> playerInventories = new HashMap<>();
+        players = new HashMap<>();
+        playerInventories = new HashMap<>();
+        AttackValidator attacks = new AttackValidator(CombatConfig.defaults());
+        CombatSystem combat = new CombatSystem();
+        combatPlayers = new HashMap<>();
+
+        overseerTelemetry = new TelemetryCollector();
 
         Map<Long, Integer> treeHits = new HashMap<>();
         Map<Integer, Long> lastPunchTime = new HashMap<>();
         List<TreeRemoved> destroyedTrees = new ArrayList<>();
-
 
         Map<Long, Integer> rockHits = new HashMap<>();
         List<RockRemoved> destroyedRocks = new ArrayList<>();
@@ -92,6 +111,10 @@ public class ServerLauncher {
                 connection.sendTCP(welcome);
 
                 int playerId = connection.getID();
+                CombatPlayer combatPlayer = new CombatPlayer(playerId);
+                combatPlayers.put(playerId, combatPlayer);
+                combat.register(combatPlayer);
+                connection.sendTCP(healthPacket(combatPlayer));
                 playerInventories.put(
                     playerId,
                     new Inventory()
@@ -118,6 +141,8 @@ public class ServerLauncher {
 
             @Override
             public void received(Connection connection, Object object) {
+                CombatPlayer combatPlayer = combatPlayers.get(connection.getID());
+                if (combatPlayer == null || !combatPlayer.isAlive()) return;
                 if (object instanceof Ping) {
                     Ping ping = (Ping) object;
                     System.out.println("SERVER: Received from client -> " + ping.message);
@@ -127,11 +152,64 @@ public class ServerLauncher {
                     connection.sendTCP(response);
                 } else if (object instanceof PositionUpdate) {
                     PositionUpdate update = (PositionUpdate) object;
+                    if (!combatPlayer.updatePosition(update.x, update.y, update.movementRevision)) return;
                     PlayerPosition position = new PlayerPosition(
                         connection.getID(), update.x, update.y, update.direction, update.moving);
                     players.put(connection.getID(), position);
+                    position.movementRevision = combatPlayer.movementRevision();
+                    Inventory inventory = playerInventories.get(connection.getID());
+                    if (inventory != null && update.selectedSlot >= 0 && update.selectedSlot < Inventory.SLOT_COUNT) {
+                        ItemStack held = inventory.getSlot(update.selectedSlot);
+                        position.heldItemId = held == null ? "" : held.itemId();
+                    }
                     for (Connection recipient : server.getConnections()) {
                         if (recipient.getID() != connection.getID()) recipient.sendUDP(position);
+                    }
+                }
+                else if (object instanceof AttackRequest request) {
+                    int id = connection.getID();
+                    PlayerPosition position = players.get(id);
+                    if (position == null) return;
+                    AttackValidator.Swing swing = attacks.accept(id, playerInventories.get(id),
+                        position.x + 16f, position.y + 16f, gameStarted && day <= winThreshold,
+                        request, System.nanoTime());
+                    if (swing == null) return;
+                    AttackAccepted accepted = new AttackAccepted();
+                    accepted.playerId = id;
+                    accepted.itemId = swing.itemId();
+                    accepted.originX = swing.originX();
+                    accepted.originY = swing.originY();
+                    accepted.directionX = swing.directionX();
+                    accepted.directionY = swing.directionY();
+                    server.sendToAllTCP(accepted);
+                    for (CombatTarget target : combat.resolve(combatPlayer.combatId(), swing)) {
+                        Knockback.apply(target, swing.directionX(), swing.directionY(), swing.stats().knockback(),
+                            (tileX, tileY) -> {
+                                Chunk chunk = findChunk(tileX, tileY);
+                                return chunk != null && chunk.isWalkable(Chunk.localCoordinate(tileX), Chunk.localCoordinate(tileY));
+                            });
+                        System.out.println("SERVER: " + combatPlayer.combatId() + " hit "
+                            + target.combatId() + " for " + swing.stats().damage());
+                        if (target instanceof CombatPlayer victim) {
+                            PlayerPosition previous = players.get(victim.playerId());
+                            PlayerPosition correction = new PlayerPosition(victim.playerId(), victim.x(), victim.y(),
+                                previous == null ? 0 : previous.direction, false);
+                            correction.correction = true;
+                            correction.heldItemId = victim.isAlive() && previous != null ? previous.heldItemId : "";
+                            correction.movementRevision = victim.movementRevision();
+                            players.put(victim.playerId(), correction);
+                            server.sendToAllTCP(correction);
+                            server.sendToTCP(victim.playerId(), healthPacket(victim));
+                            if (!victim.isAlive()) {
+                                overseerTelemetry.recordPlayerDeath();
+
+                                PlayerPosition stopped = players.get(victim.playerId());
+                                if (stopped != null) {
+                                    stopped.moving = false;
+                                    server.sendToAllTCP(stopped);
+                                }
+                            }
+                        }
                     }
                 }
                 else if (object instanceof PunchTree punch) {
@@ -359,6 +437,8 @@ public class ServerLauncher {
 
             @Override
             public void disconnected(Connection connection) {
+                CombatPlayer removed = combatPlayers.remove(connection.getID());
+                if (removed != null) combat.remove(removed.combatId());
                 players.remove(connection.getID());
 
                 PlayerLeft left = new PlayerLeft(connection.getID());
@@ -375,6 +455,7 @@ public class ServerLauncher {
                 }
 
                 lastPunchTime.remove(connection.getID());
+                attacks.removePlayer(connection.getID());
 
                 playerInventories.remove(connection.getID());
 
@@ -383,7 +464,7 @@ public class ServerLauncher {
         });
 
         server.start();
-        System.out.println("SERVER: Listening on TCP " + Network.TCP_PORT + " and UDP " + Network.UDP_PORT + "...");
+        System.out.println("SERVER: Listening on TCP " + tcpPort + " and UDP " + udpPort + "...");
 
         lastTime = System.nanoTime();
 
@@ -402,6 +483,15 @@ public class ServerLauncher {
                 break;
             }
         }
+    }
+
+    private static PlayerHealth healthPacket(CombatPlayer player) {
+        PlayerHealth packet = new PlayerHealth();
+        packet.playerId = player.playerId();
+        packet.health = player.health();
+        packet.x = player.x();
+        packet.y = player.y();
+        return packet;
     }
 
     private static void sendInventorySync(
@@ -450,6 +540,11 @@ public class ServerLauncher {
     public static void update(float delta, Server server) {
         if (!gameStarted || server.getConnections().size() == 0) return;
 
+        boolean isNight = timeTimer > dayLengthSeconds * nightThreshold;
+
+        // enemiesCount = 0 for now, because they are not implemented yet
+        overseerTelemetry.update(delta, day, isNight, 0, combatPlayers, playerInventories);
+
         timeTimer += delta;
         syncTimer += delta;
 
@@ -462,7 +557,6 @@ public class ServerLauncher {
         if (syncTimer >= serverSyncInterval) {
             syncTimer = 0f;
 
-            boolean isNight = timeTimer > dayLengthSeconds * nightThreshold;
             TimeSync syncPacket = new TimeSync();
             syncPacket.currentDay = day;
             syncPacket.isNight = isNight;

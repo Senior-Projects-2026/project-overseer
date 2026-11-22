@@ -1,4 +1,3 @@
-
 package com.projectoverseer.shared.crafting;
 
 public enum CraftingRecipe {

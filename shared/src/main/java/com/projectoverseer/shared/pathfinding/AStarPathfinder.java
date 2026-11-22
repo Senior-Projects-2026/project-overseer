@@ -1,4 +1,3 @@
-
 package com.projectoverseer.shared.pathfinding;
 
 import com.projectoverseer.shared.world.Chunk;

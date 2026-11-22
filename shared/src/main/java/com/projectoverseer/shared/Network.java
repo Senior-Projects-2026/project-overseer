@@ -61,10 +61,38 @@ public class Network {
 
         kryo.register(CraftRequest.class);
         kryo.register(CraftResult.class);
+        kryo.register(AttackRequest.class);
+        kryo.register(AttackAccepted.class);
+        kryo.register(PlayerHealth.class);
 
     }
 
     // 3. DTOs
+    /** Server to player: authoritative health; position corrects movement on death. */
+    public static class PlayerHealth {
+        public int playerId;
+        public float health, x, y;
+        public PlayerHealth() {}
+    }
+
+    public static class AttackRequest {
+        public int selectedSlot;
+        public float aimX, aimY;
+        public AttackRequest() {}
+        public AttackRequest(int selectedSlot, float aimX, float aimY) {
+            this.selectedSlot = selectedSlot;
+            this.aimX = aimX;
+            this.aimY = aimY;
+        }
+    }
+
+    /** Server-approved swing, also usable by the future animation system. */
+    public static class AttackAccepted {
+        public int playerId;
+        public String itemId;
+        public float originX, originY, directionX, directionY;
+        public AttackAccepted() {}
+    }
 
     // Utils
     public static class Ping {
@@ -80,6 +108,8 @@ public class Network {
     // Movement
     /** Client to server: the sender's latest world position. */
     public static class PositionUpdate {
+        public int selectedSlot;
+        public long movementRevision;
         public float x;
         public float y;
         public int direction;
@@ -96,6 +126,9 @@ public class Network {
 
     /** Server to clients: a player's latest world position. */
     public static class PlayerPosition {
+        public String heldItemId = "";
+        public long movementRevision;
+        public boolean correction;
         public int playerId;
         public float x;
         public float y;

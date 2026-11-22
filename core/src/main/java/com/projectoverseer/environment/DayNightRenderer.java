@@ -6,24 +6,26 @@ import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
+import com.projectoverseer.config.ClientConfig;
 
 public class DayNightRenderer {
     private ShapeRenderer shapeRenderer;
     private BitmapFont font;
     private float currentAlpha = 0f;
-    private float transitionSpeed = 0.2f;
+    private final float transitionSpeed = ClientConfig.getFloat("graphics.daynight.transition.speed", 0.2f);
+    private final float maxNightAlpha = ClientConfig.getFloat("graphics.daynight.max.alpha", 0.6f);
 
     public DayNightRenderer() {
         shapeRenderer = new ShapeRenderer();
         font = new BitmapFont();
-        font.getData().setScale(1.5f);
+        font.getData().setScale(ClientConfig.getFloat("ui.day.font.scale", 1.5f));
     }
 
     public void render(OrthographicCamera camera, SpriteBatch batch, int currentDay, boolean isNight) {
         float delta = Gdx.graphics.getDeltaTime();
 
         if (isNight) {
-            currentAlpha = Math.min(0.6f, currentAlpha + delta * transitionSpeed);
+            currentAlpha = Math.min(maxNightAlpha, currentAlpha + delta * transitionSpeed);
         } else {
             currentAlpha = Math.max(0f, currentAlpha - delta * transitionSpeed);
         }
@@ -60,11 +62,10 @@ public class DayNightRenderer {
         font.dispose();
     }
 
-    public void renderVictoryScreen(OrthographicCamera camera, SpriteBatch batch) {
+    public void renderVictoryScreen(OrthographicCamera camera, SpriteBatch batch, int totalDays) {
         batch.setProjectionMatrix(camera.combined);
         batch.begin();
-        //todo: actual number of days
-        font.draw(batch, "VICTORY! YOU SURVIVED 100 DAYS!",
+        font.draw(batch, "VICTORY! YOU SURVIVED " + totalDays + " DAYS!",
             camera.position.x - 180,
             camera.position.y);
         batch.end();

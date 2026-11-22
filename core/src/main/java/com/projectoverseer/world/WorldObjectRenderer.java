@@ -7,6 +7,7 @@ import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.utils.Disposable;
+import com.projectoverseer.Assets;
 import com.projectoverseer.entities.Player;
 import com.projectoverseer.shared.world.Chunk;
 import com.projectoverseer.shared.world.ResourceType;
@@ -31,11 +32,11 @@ public final class WorldObjectRenderer implements Disposable {
         try {
             // Regions remove empty padding in the original generated PNGs without
             // rewriting them. Anchors and world dimensions are in ResourceAppearance.
-            tree = load("world/tree.png", 22, 73, 1057, 1308);
+            tree = load(Assets.WORLD_TREE, 22, 73, 1057, 1308);
             rocks = new TextureRegion[]{
-                load("world/rock-1.png", 346, 278, 759, 609),
-                load("world/rock-2.png", 48, 228, 1440, 684),
-                load("world/rock-3.png", 234, 173, 1080, 708)
+                load(Assets.WORLD_ROCK_1, 346, 278, 759, 609),
+                load(Assets.WORLD_ROCK_2, 48, 228, 1440, 684),
+                load(Assets.WORLD_ROCK_3, 234, 173, 1080, 708)
             };
         } catch (RuntimeException e) {
             dispose();

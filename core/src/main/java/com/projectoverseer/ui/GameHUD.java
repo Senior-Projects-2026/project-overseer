@@ -18,13 +18,13 @@ import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 import com.badlogic.gdx.utils.Disposable;
 import com.badlogic.gdx.utils.viewport.FitViewport;
+import com.projectoverseer.Assets;
+import com.projectoverseer.config.ClientConfig;
 import com.projectoverseer.gameplay.Inventory;
 import com.projectoverseer.gameplay.ItemStack;
 import com.projectoverseer.gameplay.PlayerStats;
 
 public final class GameHUD implements Disposable {
-
-
     private static final int ICON_COUNT = 10;
     private static final int ICON_SIZE = 13;
 
@@ -59,9 +59,6 @@ public final class GameHUD implements Disposable {
         Input.Keys.NUM_4, Input.Keys.NUM_5, Input.Keys.NUM_6,
         Input.Keys.NUM_7, Input.Keys.NUM_8, Input.Keys.NUM_9
     };
-
-
-    private static final String HUD_ASSET_PATH = "ui/hud/";
 
     private final Texture[] iconTextures = new Texture[6];
 
@@ -99,38 +96,39 @@ public final class GameHUD implements Disposable {
     public GameHUD(PlayerStats stats, Inventory inventory) {
         this.stats = stats;
         this.inventory = inventory;
-
-        stage = new Stage(new FitViewport(640, 360));
+        int viewportWidth = ClientConfig.getInt("ui.hud.viewport.width", 640);
+        int viewportHeight = ClientConfig.getInt("ui.hud.viewport.height", 360);
+        stage = new Stage(new FitViewport(viewportWidth, viewportHeight));
 
         font = new BitmapFont();
-        font.getData().setScale(0.65f);
+        font.getData().setScale(ClientConfig.getFloat("ui.hud.font.scale", 0.65f));
 
         heartIcons[EMPTY] = loadIcon(
-            HUD_ASSET_PATH + "health/container.png", 0
+            Assets.HUD_HEART_EMPTY, 0
         );
 
         heartIcons[HALF] = loadIcon(
-            HUD_ASSET_PATH + "health/half.png", 1
+            Assets.HUD_HEART_HALF, 1
         );
 
         heartIcons[FULL] = loadIcon(
-            HUD_ASSET_PATH + "health/full.png", 2
+            Assets.HUD_HEART_FULL, 2
         );
 
         foodIcons[EMPTY] = loadIcon(
-            HUD_ASSET_PATH + "hunger/food_empty.png", 3
+            Assets.HUD_FOOD_EMPTY, 3
         );
 
         foodIcons[HALF] = loadIcon(
-            HUD_ASSET_PATH + "hunger/food_half.png", 4
+            Assets.HUD_FOOD_HALF, 4
         );
 
         foodIcons[FULL] = loadIcon(
-            HUD_ASSET_PATH + "hunger/food_full.png", 5
+            Assets.HUD_FOOD_FULL, 5
         );
 
         woodTexture = new Texture(
-            Gdx.files.internal("ui/items/wood.png")
+            Gdx.files.internal(Assets.ITEM_WOOD)
         );
 
         woodTexture.setFilter(
@@ -143,7 +141,7 @@ public final class GameHUD implements Disposable {
         );
 
         stoneTexture = new Texture(
-            Gdx.files.internal("ui/items/stone.png")
+            Gdx.files.internal(Assets.ITEM_STONE)
         );
 
         stoneTexture.setFilter(
@@ -152,7 +150,7 @@ public final class GameHUD implements Disposable {
         );
 
         axeTexture = new Texture(
-            Gdx.files.internal("ui/items/axe.png")
+            Gdx.files.internal(Assets.ITEM_AXE)
         );
         axeTexture.setFilter(
             Texture.TextureFilter.Nearest,
@@ -163,7 +161,7 @@ public final class GameHUD implements Disposable {
         );
 
         pickaxeTexture = new Texture(
-            Gdx.files.internal("ui/items/pickaxe.png")
+            Gdx.files.internal(Assets.ITEM_PICKAXE)
         );
         pickaxeTexture.setFilter(
             Texture.TextureFilter.Nearest,
@@ -174,7 +172,7 @@ public final class GameHUD implements Disposable {
         );
 
         daggerTexture = new Texture(
-            Gdx.files.internal("ui/items/dagger.png")
+            Gdx.files.internal(Assets.ITEM_SWORD)
         );
         daggerTexture.setFilter(
             Texture.TextureFilter.Nearest,
