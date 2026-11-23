@@ -18,9 +18,13 @@ import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.utils.ScreenUtils;
 import com.badlogic.gdx.utils.Timer;
 import com.badlogic.gdx.utils.viewport.FitViewport;
+import com.badlogic.gdx.InputAdapter;
+import com.badlogic.gdx.InputMultiplexer;
+
 import com.esotericsoftware.kryonet.Client;
 import com.esotericsoftware.kryonet.Connection;
 import com.esotericsoftware.kryonet.Listener;
+
 import com.projectoverseer.config.ClientConfig;
 import com.projectoverseer.entities.Player;
 import com.projectoverseer.environment.DayNightRenderer;
@@ -63,6 +67,8 @@ import com.projectoverseer.ui.MainMenu;
 import com.projectoverseer.ui.RespawnScreen;
 import com.projectoverseer.world.TileRenderer;
 import com.projectoverseer.world.WorldObjectRenderer;
+import com.projectoverseer.shared.chat.ChatMessage;
+import com.projectoverseer.ui.ChatUI;
 
 
 /** {@link com.badlogic.gdx.ApplicationListener} implementation shared by all platforms. */
@@ -103,6 +109,8 @@ public class Main extends ApplicationAdapter {
 
     private GameHUD hud;
     private CraftingMenu craftingMenu;
+    private ChatUI chatUI;
+    private InputMultiplexer gameplayInput;
 
     private volatile boolean isConnected;
     private volatile int playerId = -1;
@@ -140,6 +148,34 @@ public class Main extends ApplicationAdapter {
                 }
             }
         );
+        chatUI = new ChatUI(
+            hud.getStage(),
+            text -> {
+                if (isConnected && gameState == GameState.PLAYING) {
+                    client.sendTCP(new ChatMessage(text));
+                }
+            }
+        );
+
+        gameplayInput = new InputMultiplexer(
+            new InputAdapter() {
+                @Override
+                public boolean keyTyped(char character) {
+                    if (character == '/'
+                        && gameState == GameState.PLAYING
+                        && !craftingMenu.isOpen()
+                        && !chatUI.isTyping()) {
+
+                        chatUI.open();
+                        return true;
+                    }
+
+                    return false;
+                }
+            },
+            hud.getStage()
+        );
+
 
         menu = new MainMenu(this::connectToServer);
         menu.show("Choose Play to connect to the server.");
@@ -271,13 +307,14 @@ public class Main extends ApplicationAdapter {
                             player.setRemoteState(health.x, health.y, player.getDirection(), false);
                             gameState = GameState.DEAD;
                             craftingMenu.hide();
+                            chatUI.close();
                             respawnScreen.show();
                             Gdx.app.log("Combat", "Player died. Waiting for respawn.");
                         } else if (health.health > 0 && gameState == GameState.DEAD) {
                             player.setRemoteState(health.x, health.y, player.getDirection(), false);
                             gameState = GameState.PLAYING;
                             respawnScreen.hide();
-                            Gdx.input.setInputProcessor(hud.getStage());
+                            Gdx.input.setInputProcessor(gameplayInput);
                             Gdx.app.log("Combat", "Player respawned.");
                         }
                     });
@@ -355,6 +392,22 @@ public class Main extends ApplicationAdapter {
                             "CLIENT: Craft failed for " + result.itemId
                         );
                     }
+                }
+                else if (object instanceof ChatMessage message) {
+                    int senderId = message.playerId;
+                    String text = message.text;
+
+                    Gdx.app.postRunnable(() -> {
+                        if (!connection.isConnected() || !isConnected) {
+                            return;
+                        }
+
+                        String sender = senderId == playerId
+                            ? "You"
+                            : "Player " + senderId;
+
+                        chatUI.addMessage(sender, text);
+                    });
                 }
 
 
@@ -434,9 +487,17 @@ public class Main extends ApplicationAdapter {
     }
 
     private void showMenu(String status) {
-        if (craftingMenu != null) {
+        if (welcomeTimeout != null) {
             welcomeTimeout.cancel();
+        }
+
+        if (craftingMenu != null) {
             craftingMenu.hide();
+        }
+
+        if (chatUI != null) {
+            chatUI.close();
+            chatUI.clearHistory();
         }
         isConnected = false;
         gameState = GameState.MENU;
@@ -469,7 +530,7 @@ public class Main extends ApplicationAdapter {
         positionUpdateTimer = 0f;
         menu.hide();
         gameState = GameState.PLAYING;
-        Gdx.input.setInputProcessor(hud.getStage());
+        Gdx.input.setInputProcessor(gameplayInput);
         System.out.println("CLIENT: World seed " + welcome.worldSeed + ", generator version "
             + welcome.generatorVersion + ", chunks " + chunks.size());
     }
@@ -481,7 +542,8 @@ public class Main extends ApplicationAdapter {
             || player.getStats().getHealth() == 0
             || !isConnected
             || craftingMenu.isOpen()
-            || !Gdx.input.isButtonJustPressed(Input.Buttons.LEFT)) {
+            || !Gdx.input.isButtonJustPressed(Input.Buttons.LEFT)
+            || chatUI.isTyping()) {
             return;
         }
 
@@ -562,7 +624,8 @@ public class Main extends ApplicationAdapter {
             || player.getStats().getHealth() == 0
             || !isConnected
             || craftingMenu.isOpen()
-            || !Gdx.input.isButtonJustPressed(Input.Buttons.RIGHT)) {
+            || !Gdx.input.isButtonJustPressed(Input.Buttons.RIGHT)
+            || chatUI.isTyping()) {
             return;
         }
 
@@ -584,7 +647,10 @@ public class Main extends ApplicationAdapter {
             return;
         }
 
-        if (Gdx.input.isKeyJustPressed(Input.Keys.C)) {
+        if (gameState == GameState.PLAYING
+            && !chatUI.isTyping()
+            && Gdx.input.isKeyJustPressed(Input.Keys.C)) {
+
             craftingMenu.toggle();
         }
 
@@ -592,8 +658,9 @@ public class Main extends ApplicationAdapter {
             respawnScreen.render(Gdx.graphics.getDeltaTime());
             return;
         }
-
-        player.update(chunks);
+        boolean allowGameplayInput =
+            !chatUI.isTyping() && !craftingMenu.isOpen();
+        player.update(chunks, allowGameplayInput);
         updateLoadedChunks();
 
         if (isConnected) {
@@ -663,7 +730,10 @@ public class Main extends ApplicationAdapter {
         worldObjectRenderer.render(batch, chunks, camera, player, otherPlayers.values());
         batch.end();
 
-        hud.render(Gdx.graphics.getDeltaTime());
+        hud.render(
+            Gdx.graphics.getDeltaTime(),
+            allowGameplayInput
+        );
 
         dayNightRenderer.render(camera, batch, currentDay, isNight);
     }
@@ -764,6 +834,7 @@ private void removeTreeFromWorld(int tileX, int tileY) {
         if (worldObjectRenderer != null) worldObjectRenderer.dispose();
         if (dayNightRenderer != null) dayNightRenderer.dispose();
         if (craftingMenu != null) craftingMenu.dispose();
+        if (chatUI != null) chatUI.dispose();
         if (hud != null) hud.dispose();
         if (respawnScreen != null) respawnScreen.dispose();
     }
