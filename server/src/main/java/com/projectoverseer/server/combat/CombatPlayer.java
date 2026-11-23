@@ -42,4 +42,21 @@ public final class CombatPlayer implements CombatTarget {
         if (!Float.isFinite(damage) || damage < 0) throw new IllegalArgumentException("Invalid damage");
         health = Math.max(0, health - damage);
     }
+
+    public void respawn(float x, float y) {
+        this.health = CombatRules.PLAYER_MAX_HEALTH;
+        this.x = x;
+        this.y = y;
+        this.positioned = true;
+        this.movementRevision++;
+    }
+
+    @Override
+    public void restoreHealth(float amount) {
+        if (!Float.isFinite(amount) || amount < 0) {
+            throw new IllegalArgumentException("Invalid healing amount");
+        }
+
+        health = Math.min(CombatRules.PLAYER_MAX_HEALTH, health + amount);
+    }
 }

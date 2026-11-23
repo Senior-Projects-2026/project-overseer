@@ -1,5 +1,12 @@
 package com.projectoverseer;
 
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
 import com.badlogic.gdx.ApplicationAdapter;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
@@ -11,28 +18,51 @@ import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.utils.ScreenUtils;
 import com.badlogic.gdx.utils.Timer;
 import com.badlogic.gdx.utils.viewport.FitViewport;
-
 import com.esotericsoftware.kryonet.Client;
 import com.esotericsoftware.kryonet.Connection;
 import com.esotericsoftware.kryonet.Listener;
-
 import com.projectoverseer.config.ClientConfig;
 import com.projectoverseer.entities.Player;
 import com.projectoverseer.environment.DayNightRenderer;
 import com.projectoverseer.gameplay.Inventory;
 import com.projectoverseer.gameplay.ItemStack;
 import com.projectoverseer.shared.Network;
-import com.projectoverseer.shared.Network.*;
-import com.projectoverseer.shared.world.*;
+import com.projectoverseer.shared.Network.AttackAccepted;
+import com.projectoverseer.shared.Network.AttackRequest;
+import com.projectoverseer.shared.Network.BerryBushUpdated;
+import com.projectoverseer.shared.Network.CollectBerryBush;
+import com.projectoverseer.shared.Network.ConsumeItemRequest;
+import com.projectoverseer.shared.Network.CraftRequest;
+import com.projectoverseer.shared.Network.CraftResult;
+import com.projectoverseer.shared.Network.GameEnd;
+import com.projectoverseer.shared.Network.InventorySync;
+import com.projectoverseer.shared.Network.Ping;
+import com.projectoverseer.shared.Network.PlayerHealth;
+import com.projectoverseer.shared.Network.PlayerHunger;
+import com.projectoverseer.shared.Network.PlayerLeft;
+import com.projectoverseer.shared.Network.PlayerPosition;
+import com.projectoverseer.shared.Network.PositionUpdate;
+import com.projectoverseer.shared.Network.PunchRock;
+import com.projectoverseer.shared.Network.PunchTree;
+import com.projectoverseer.shared.Network.RespawnRequest;
+import com.projectoverseer.shared.Network.RockHit;
+import com.projectoverseer.shared.Network.RockRemoved;
+import com.projectoverseer.shared.Network.TimeSync;
+import com.projectoverseer.shared.Network.TreeHit;
+import com.projectoverseer.shared.Network.TreeRemoved;
+import com.projectoverseer.shared.Network.Welcome;
+import com.projectoverseer.shared.world.Chunk;
+import com.projectoverseer.shared.world.ChunkManager;
+import com.projectoverseer.shared.world.ResourceGatheringRules;
+import com.projectoverseer.shared.world.ResourceType;
+import com.projectoverseer.shared.world.WorldResource;
 import com.projectoverseer.shared.world.generation.WorldGenerator;
 import com.projectoverseer.ui.CraftingMenu;
 import com.projectoverseer.ui.GameHUD;
 import com.projectoverseer.ui.MainMenu;
+import com.projectoverseer.ui.RespawnScreen;
 import com.projectoverseer.world.TileRenderer;
 import com.projectoverseer.world.WorldObjectRenderer;
-
-import java.io.IOException;
-import java.util.*;
 
 
 /** {@link com.badlogic.gdx.ApplicationListener} implementation shared by all platforms. */
@@ -41,6 +71,7 @@ public class Main extends ApplicationAdapter {
         MENU,
         CONNECTING,
         PLAYING,
+        DEAD,
         VICTORY
     }
 
@@ -48,6 +79,7 @@ public class Main extends ApplicationAdapter {
     private SpriteBatch batch;
     private MainMenu menu;
     private GameState gameState = GameState.MENU;
+    private RespawnScreen respawnScreen;
 
     private volatile int currentDay = 1;
     private volatile boolean isNight = false;
@@ -79,7 +111,7 @@ public class Main extends ApplicationAdapter {
     private String connectionError;
 
     private final Set<Long> destroyedResources = new HashSet<>();
-
+    private final Set<Long> depletedBerryBushes = new HashSet<>();
 
     @Override
     public void create() {
@@ -111,6 +143,11 @@ public class Main extends ApplicationAdapter {
 
         menu = new MainMenu(this::connectToServer);
         menu.show("Choose Play to connect to the server.");
+
+        respawnScreen = new RespawnScreen(() -> {
+            Gdx.app.log("Combat", "Respawn requested.");
+            client.sendTCP(new RespawnRequest());
+        });
     }
 
     private static long resourceKey(int tileX, int tileY) {
@@ -207,18 +244,52 @@ public class Main extends ApplicationAdapter {
                     });
 
                 }
+                else if (object instanceof BerryBushUpdated updated) {
+                    Gdx.app.postRunnable(() -> {
+                        if (updated.count == 0) {
+                            depletedBerryBushes.add(
+                                resourceKey(updated.tileX, updated.tileY)
+                            );
+                        }
+
+                        updateBerryBushInWorld(
+                            updated.tileX,
+                            updated.tileY,
+                            updated.count
+                        );
+                    });
+                }
                 else if (object instanceof PlayerHealth health) {
                     Gdx.app.postRunnable(() -> {
                         if (health.playerId != playerId || !isConnected) return;
+
                         player.getStats().setHealth((int) Math.ceil(health.health));
                         Gdx.app.log("Combat", "Health: " + health.health);
-                        if (health.health <= 0) {
+
+                        if (health.health <= 0 && gameState != GameState.DEAD) {
+                            Gdx.app.log("Combat", "Death detected. Current state: " + gameState);
                             player.setRemoteState(health.x, health.y, player.getDirection(), false);
-                            Gdx.app.log("Combat", "You died. Reconnect to start with full health.");
+                            gameState = GameState.DEAD;
+                            craftingMenu.hide();
+                            respawnScreen.show();
+                            Gdx.app.log("Combat", "Player died. Waiting for respawn.");
+                        } else if (health.health > 0 && gameState == GameState.DEAD) {
+                            player.setRemoteState(health.x, health.y, player.getDirection(), false);
+                            gameState = GameState.PLAYING;
+                            respawnScreen.hide();
+                            Gdx.input.setInputProcessor(hud.getStage());
+                            Gdx.app.log("Combat", "Player respawned.");
                         }
                     });
-                }
-                else if (object instanceof AttackAccepted attack) {
+                    }else if (object instanceof PlayerHunger hunger) {
+                        Gdx.app.postRunnable(() -> {
+                            if (hunger.playerId != playerId || !isConnected) return;
+
+                            player.getStats().setHunger(Math.round(hunger.hunger));
+
+                            Gdx.app.log("Survival", "Hunger depleted: " + hunger.hunger);
+                        });
+                    }else if (object instanceof AttackAccepted attack) {
                     Gdx.app.postRunnable(() -> {
                         Player attacker;
                         if (attack.playerId == playerId) {
@@ -321,6 +392,7 @@ public class Main extends ApplicationAdapter {
             return;
         }
         destroyedResources.clear();
+        depletedBerryBushes.clear();
         gameState = GameState.CONNECTING;
         connectionError = null;
         chunks = List.of();
@@ -464,24 +536,40 @@ public class Main extends ApplicationAdapter {
             return;
         }
 
+        // dont change this to a switch, game breaks the postioning system
         if (resource.type() == ResourceType.TREE) {
-
             client.sendTCP(new PunchTree(
                 resource.tileX(),
                 resource.tileY(),
                 player.getInventory().getSelectedSlot()
             ));
-
         } else if (resource.type() == ResourceType.ROCK) {
-
             client.sendTCP(new PunchRock(
                 resource.tileX(),
                 resource.tileY(),
                 player.getInventory().getSelectedSlot()
             ));
+        } else if (resource.type() == ResourceType.BERRY_BUSH) {
+            client.sendTCP(new CollectBerryBush(
+                resource.tileX(),
+                resource.tileY()
+            ));
         }
     }
 
+    private void handleSecondaryAction() {
+        if (gameState != GameState.PLAYING
+            || player.getStats().getHealth() == 0
+            || !isConnected
+            || craftingMenu.isOpen()
+            || !Gdx.input.isButtonJustPressed(Input.Buttons.RIGHT)) {
+            return;
+        }
+
+        int selectedSlot = player.getInventory().getSelectedSlot();
+
+        client.sendTCP(new ConsumeItemRequest(selectedSlot));
+    }
 
     @Override
     public void render() {
@@ -495,8 +583,14 @@ public class Main extends ApplicationAdapter {
             dayNightRenderer.renderVictoryScreen(camera, batch, currentDay);
             return;
         }
+
         if (Gdx.input.isKeyJustPressed(Input.Keys.C)) {
             craftingMenu.toggle();
+        }
+
+        if (gameState == GameState.DEAD) {
+            respawnScreen.render(Gdx.graphics.getDeltaTime());
+            return;
         }
 
         player.update(chunks);
@@ -544,6 +638,7 @@ public class Main extends ApplicationAdapter {
 
         camera.update();
         handlePrimaryAction();
+        handleSecondaryAction();
 
         // Making the entire screen black for black screen borders
         Gdx.gl.glClearColor(0, 0, 0, 1);
@@ -585,28 +680,31 @@ public class Main extends ApplicationAdapter {
             hud.resize(width, height);
         }
 
+        if (respawnScreen != null) {
+            respawnScreen.resize(width, height);
+        }
     }
 
-    private void removeTreeFromWorld(int tileX, int tileY) {
-        destroyedResources.add(resourceKey(tileX, tileY));
-        int chunkX = Chunk.chunkCoordinate(tileX);
-        int chunkY = Chunk.chunkCoordinate(tileY);
-        for (Chunk chunk : chunks) {
+private void removeTreeFromWorld(int tileX, int tileY) {
+    destroyedResources.add(resourceKey(tileX, tileY));
+    int chunkX = Chunk.chunkCoordinate(tileX);
+    int chunkY = Chunk.chunkCoordinate(tileY);
+    for (Chunk chunk : chunks) {
             if (chunk.getChunkX() != chunkX
                 || chunk.getChunkY() != chunkY) {
-                continue;
-            }
-            int localX = Chunk.localCoordinate(tileX);
-            int localY = Chunk.localCoordinate(tileY);
+            continue;
+        }
+        int localX = Chunk.localCoordinate(tileX);
+        int localY = Chunk.localCoordinate(tileY);
             WorldResource resource =
                 chunk.getResource(localX, localY);
             if (resource != null
                 && resource.type() == ResourceType.TREE) {
-                chunk.removeResource(localX, localY);
+        chunk.removeResource(localX, localY);
             }
-            return;
-        }
+        return;
     }
+}
 
     private void removeRockFromWorld(int tileX, int tileY) {
         destroyedResources.add(resourceKey(tileX, tileY));
@@ -635,6 +733,23 @@ public class Main extends ApplicationAdapter {
         }
     }
 
+    private void updateBerryBushInWorld(int tileX, int tileY, int count) {
+        int chunkX = Chunk.chunkCoordinate(tileX);
+        int chunkY = Chunk.chunkCoordinate(tileY);
+
+        for (Chunk chunk : chunks) {
+            if (chunk.getChunkX() != chunkX || chunk.getChunkY() != chunkY) {
+                continue;
+            }
+
+            int localX = Chunk.localCoordinate(tileX);
+            int localY = Chunk.localCoordinate(tileY);
+
+            chunk.setResource(localX, localY, ResourceType.BERRY_BUSH, count);
+            return;
+        }
+    }
+
     @Override
     public void dispose() {
         if (welcomeTimeout != null) welcomeTimeout.cancel();
@@ -650,6 +765,7 @@ public class Main extends ApplicationAdapter {
         if (dayNightRenderer != null) dayNightRenderer.dispose();
         if (craftingMenu != null) craftingMenu.dispose();
         if (hud != null) hud.dispose();
+        if (respawnScreen != null) respawnScreen.dispose();
     }
 
     private void disposeOtherPlayers() {
@@ -686,12 +802,20 @@ public class Main extends ApplicationAdapter {
 
         for (Chunk chunk : chunks) {
             for (WorldResource resource : List.copyOf(chunk.getResources())) {
-                if (destroyedResources.contains(
-                    resourceKey(resource.tileX(), resource.tileY())
-                )) {
-                    chunk.removeResource(
-                        Chunk.localCoordinate(resource.tileX()),
-                        Chunk.localCoordinate(resource.tileY())
+                long key = resourceKey(resource.tileX(), resource.tileY());
+
+                int localX = Chunk.localCoordinate(resource.tileX());
+                int localY = Chunk.localCoordinate(resource.tileY());
+
+                if (destroyedResources.contains(key)) {
+                    chunk.removeResource(localX, localY);
+                } else if (resource.type() == ResourceType.BERRY_BUSH
+                    && depletedBerryBushes.contains(key)) {
+                    chunk.setResource(
+                        localX,
+                        localY,
+                        ResourceType.BERRY_BUSH,
+                        0
                     );
                 }
             }

@@ -38,19 +38,22 @@ public final class GameHUD implements Disposable {
     private final Image[] itemImages =
         new Image[Inventory.SLOT_COUNT];
 
-    private Texture woodTexture;
-    private Drawable woodDrawable;
+    private final Texture woodTexture;
+    private final Drawable woodDrawable;
 
-    private Texture stoneTexture;
-    private Drawable stoneDrawable;
+    private final Texture stoneTexture;
+    private final Drawable stoneDrawable;
 
-    private Texture axeTexture;
-    private Texture pickaxeTexture;
-    private Texture daggerTexture;
+    private final Texture berryTexture;
+    private final Drawable berryDrawable;
 
-    private Drawable axeDrawable;
-    private Drawable pickaxeDrawable;
-    private Drawable daggerDrawable;
+    private final Texture axeTexture;
+    private final Texture pickaxeTexture;
+    private final Texture daggerTexture;
+
+    private final Drawable axeDrawable;
+    private final Drawable pickaxeDrawable;
+    private final Drawable daggerDrawable;
 
 
 
@@ -147,6 +150,19 @@ public final class GameHUD implements Disposable {
         stoneTexture.setFilter(
             Texture.TextureFilter.Nearest,
             Texture.TextureFilter.Nearest
+        );
+
+        berryTexture = new Texture(
+            Gdx.files.internal(Assets.ITEM_BERRY)
+        );
+
+        berryTexture.setFilter(
+            Texture.TextureFilter.Nearest,
+            Texture.TextureFilter.Nearest
+        );
+
+        berryDrawable = new TextureRegionDrawable(
+            new TextureRegion(berryTexture)
         );
 
         axeTexture = new Texture(
@@ -429,7 +445,6 @@ public final class GameHUD implements Disposable {
                 }
 
 
-
                 if ("wood".equals(item.itemId())) {
 
                     itemImages[i].setDrawable(woodDrawable);
@@ -442,6 +457,11 @@ public final class GameHUD implements Disposable {
                     itemImages[i].setVisible(true);
                     itemLabels[i].setText("");
 
+                } else if ("berry".equals(item.itemId())) {
+
+                    itemImages[i].setDrawable(berryDrawable);
+                    itemImages[i].setVisible(true);
+                    itemLabels[i].setText("");
                 } else if ("axe".equals(item.itemId())) {
 
                     itemImages[i].setDrawable(axeDrawable);
@@ -547,6 +567,10 @@ public final class GameHUD implements Disposable {
 
         if (stoneTexture != null) {
             stoneTexture.dispose();
+        }
+
+        if (berryTexture != null) {
+            berryTexture.dispose();
         }
 
         axeTexture.dispose();

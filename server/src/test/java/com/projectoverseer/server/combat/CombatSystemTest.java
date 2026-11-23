@@ -1,13 +1,17 @@
 package com.projectoverseer.server.combat;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Test;
+
+import com.esotericsoftware.kryo.io.Input;
+import com.esotericsoftware.kryo.io.Output;
+import com.esotericsoftware.kryonet.Client;
 import com.projectoverseer.gameplay.Inventory;
 import com.projectoverseer.shared.Network;
 import com.projectoverseer.shared.combat.CombatConfig;
-import com.esotericsoftware.kryonet.Client;
-import com.esotericsoftware.kryo.io.Input;
-import com.esotericsoftware.kryo.io.Output;
-import org.junit.jupiter.api.Test;
-import static org.junit.jupiter.api.Assertions.*;
 
 class CombatSystemTest {
     private final CombatSystem combat = new CombatSystem();
@@ -138,5 +142,7 @@ class CombatSystemTest {
         public boolean isAlive() { return damage < 30; }
         public void takeDamage(float amount) { damage += amount; hits++; }
         public void moveTo(float x, float y) {}
+        public void respawn(float x, float y) {}
+        public void restoreHealth(float amount) {}
     }
 }
