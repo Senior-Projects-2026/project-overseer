@@ -20,10 +20,11 @@ final class ResourceAppearance {
     static Placement placement(WorldResource resource) {
         float width;
         float height;
+
         if (resource.type() == ResourceType.TREE) {
             width = 64f;
             height = 80f;
-        } else {
+        } else if (resource.type() == ResourceType.ROCK) {
             int variant = rockVariant(resource.tileX(), resource.tileY());
             width = 32f;
             height = switch (variant) {
@@ -31,10 +32,21 @@ final class ResourceAppearance {
                 case 1 -> 16f;
                 default -> 21f;
             };
+        } else {
+            width = 32f;
+            height = 32f;
         }
+
         float centerX = ((float) resource.tileX() + 0.5f) * TileRenderer.TILE_SIZE;
         float groundY = ((float) resource.tileY() + 0.5f) * TileRenderer.TILE_SIZE;
-        return new Placement(centerX - width / 2f, groundY - 4f, width, height, groundY);
+
+        return new Placement(
+            centerX - width / 2f,
+            groundY - 4f,
+            width,
+            height,
+            groundY
+        );
     }
 
     record Placement(float x, float y, float width, float height, float groundY) {

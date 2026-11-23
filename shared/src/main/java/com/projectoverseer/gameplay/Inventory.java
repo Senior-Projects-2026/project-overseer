@@ -198,5 +198,36 @@ public final class Inventory {
         return true;
     }
 
+    public boolean hasRoomFor(String itemId) {
+        int maxStack = ItemStack.maxStackSize(itemId);
+
+        for (ItemStack stack : slots) {
+            if (stack == null || (stack.itemId().equals(itemId)
+                    && stack.quantity() < maxStack)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public boolean hasRoomFor(String itemId, int quantity) {
+        int maxStack = ItemStack.maxStackSize(itemId);
+        int available = 0;
+
+        for (ItemStack stack : slots) {
+            if (stack == null) {
+                available += maxStack;
+            } else if (stack.itemId().equals(itemId)) {
+                available += maxStack - stack.quantity();
+            }
+
+            if (available >= quantity) {
+                return true;
+            }
+        }
+
+        return false;
+    }
 }
 

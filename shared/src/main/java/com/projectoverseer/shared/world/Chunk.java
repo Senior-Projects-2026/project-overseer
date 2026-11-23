@@ -1,7 +1,7 @@
 package com.projectoverseer.shared.world;
 
-import java.util.Arrays;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
@@ -80,8 +80,23 @@ public final class Chunk {
      * Placement rules (such as avoiding water) belong to the generator/caller.
      */
     public void setResource(int localX, int localY, ResourceType type) {
+        setResource(localX, localY, type, 1);
+    }
+
+    /**
+     * Places or replaces a resource without changing the underlying terrain.
+     * Placement rules (such as avoiding water) belong to the generator/caller.
+     * 
+     * Sets a item drop count
+     */
+    public void setResource(int localX, int localY, ResourceType type, int count) {
         int index = index(localX, localY);
-        resources[index] = new WorldResource(type, originTileX + localX, originTileY + localY);
+        resources[index] = new WorldResource(
+            type,
+            originTileX + localX,
+            originTileY + localY,
+            count
+        );
     }
 
     /** Removes and returns the resource, or null; the terrain is preserved. */

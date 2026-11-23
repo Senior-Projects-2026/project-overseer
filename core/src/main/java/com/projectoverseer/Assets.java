@@ -15,6 +15,8 @@ public final class Assets {
     public static final String ITEM_SWORD = "ui/items/dagger.png";
     public static final String ITEM_WOOD = "ui/items/wood.png";
     public static final String ITEM_STONE = "ui/items/stone.png";
+    public static final String ITEM_BERRY = "ui/items/berry.png";
+
 
     // --- HUD ---
     public static final String HUD_HEART_EMPTY = "ui/hud/health/container.png";
@@ -29,6 +31,8 @@ public final class Assets {
     public static final String WORLD_ROCK_1 = "world/rock-1.png";
     public static final String WORLD_ROCK_2 = "world/rock-2.png";
     public static final String WORLD_ROCK_3 = "world/rock-3.png";
+    public static final String WORLD_BERRY_BUSH = "world/berry_bush.png";
+    public static final String WORLD_BUSH = "world/bush.png";    
 
     // --- Audio ---
     public static final String MUSIC_MENU = "sounds/background/menu_background.mp3";
