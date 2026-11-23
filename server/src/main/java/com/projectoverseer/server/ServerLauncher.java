@@ -63,6 +63,7 @@ import com.projectoverseer.shared.chat.ChatMessage;
 import com.projectoverseer.shared.player.JoinRequest;
 import com.projectoverseer.shared.player.JoinRejected;
 import com.projectoverseer.shared.player.PlayerName;
+import com.projectoverseer.server.player.PlayerAdmission;
 
 
 /** Launches the server application. */
@@ -126,8 +127,16 @@ public class ServerLauncher {
         Network.register(server);
         server.bind(tcpPort, udpPort);
 
-        ChatService chatService = new ChatService(server::sendToAllTCP);
-        Map<Integer, String> playerNames = new HashMap<>();
+
+        PlayerAdmission playerAdmission = new PlayerAdmission();
+
+        ChatService chatService = new ChatService(message -> {
+            for (Connection recipient : server.getConnections()) {
+                if (playerAdmission.isRegistered(recipient.getID())) {
+                    recipient.sendTCP(message);
+                }
+            }
+        });
 
 
         players = new HashMap<>();
@@ -164,27 +173,31 @@ public class ServerLauncher {
             @Override
             public void received(Connection connection, Object object) {
                 executeOnGameThread(() -> {
+
                     if (object instanceof JoinRequest request) {
                         int playerId = connection.getID();
 
-                        if (playerNames.containsKey(playerId)) {
+                        if (!connection.isConnected()) {
                             return;
                         }
 
-                        String playerName = PlayerName.normalize(request.playerName);
+                        PlayerAdmission.Result result = playerAdmission.register(
+                            playerId,
+                            request.playerName
+                        );
 
-                        if (!PlayerName.isValid(playerName)) {
+                        if (result.status() == PlayerAdmission.Status.INVALID_NAME) {
                             connection.sendTCP(new JoinRejected(
                                 "Invalid player name. Use 1-16 letters, digits, _ or -."
                             ));
                             return;
                         }
 
-                        if (!connection.isConnected()) {
+                        if (result.status() != PlayerAdmission.Status.ACCEPTED) {
                             return;
                         }
 
-                        playerNames.put(playerId, playerName);
+                        String playerName = result.playerName();
 
                         if (!gameStarted) {
                             gameStarted = true;
@@ -239,7 +252,8 @@ public class ServerLauncher {
 
                         return;
                     }
-                    if (!playerNames.containsKey(connection.getID())) {
+
+                    if (!playerAdmission.isRegistered(connection.getID())) {
                         return;
                     }
                     CombatPlayer combatPlayer = combatPlayers.get(connection.getID());
@@ -247,7 +261,7 @@ public class ServerLauncher {
 
                     if (object instanceof ChatMessage message) {
                         int playerId = connection.getID();
-                        String playerName = playerNames.get(playerId);
+                        String playerName = playerAdmission.getName(playerId);
 
                         chatService.handleMessage(
                             playerId,
@@ -703,18 +717,21 @@ public class ServerLauncher {
             public void disconnected(Connection connection) {
                 executeOnGameThread(() -> {
                     int playerId = connection.getID();
-                    boolean joined = playerNames.remove(playerId) != null;
+                    boolean joined = playerAdmission.removePlayer(playerId);
                     CombatPlayer removed = combatPlayers.remove(playerId);
                     survivalPlayers.remove(playerId);
                     if (removed != null) combat.remove(removed.combatId());
                     players.remove(playerId);
                     if (joined) {
                         PlayerLeft left = new PlayerLeft(playerId);
+
                         for (Connection recipient : server.getConnections()) {
-                            recipient.sendTCP(left);
+                            if (playerAdmission.isRegistered(recipient.getID())) {
+                                recipient.sendTCP(left);
+                            }
                         }
                     }
-                    if (playerNames.isEmpty() && gameStarted) {
+                    if (playerAdmission.isEmpty() && gameStarted) {
                         gameStarted = false;
                         timeTimer = 0;
                         syncTimer = 0;
