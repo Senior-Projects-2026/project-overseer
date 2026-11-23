@@ -2,7 +2,7 @@ package com.projectoverseer.gameplay;
 
 public record ItemStack(String itemId, int quantity) {
 
-    public static final int MAX_STACK_SIZE = 64;
+    public static final int MAX_STACK_SIZE = 64; //harcoded values... naughty naughty, do we need refactoring again?
 
     public ItemStack {
         int maxStack = maxStackSize(itemId);
