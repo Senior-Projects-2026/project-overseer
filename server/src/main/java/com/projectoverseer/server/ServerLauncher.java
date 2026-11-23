@@ -5,10 +5,13 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 import com.esotericsoftware.kryonet.Connection;
 import com.esotericsoftware.kryonet.Listener;
 import com.esotericsoftware.kryonet.Server;
+
 import com.projectoverseer.gameplay.Inventory;
 import com.projectoverseer.gameplay.ItemStack;
 import com.projectoverseer.server.combat.AttackValidator;
@@ -55,8 +58,8 @@ import com.projectoverseer.shared.world.ResourceGatheringRules;
 import com.projectoverseer.shared.world.ResourceType;
 import com.projectoverseer.shared.world.WorldResource;
 import com.projectoverseer.shared.world.generation.WorldGenerator;
-import java.util.Queue;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import com.projectoverseer.server.chat.ChatService;
+import com.projectoverseer.shared.chat.ChatMessage;
 
 /** Launches the server application. */
 public class ServerLauncher {
@@ -119,6 +122,9 @@ public class ServerLauncher {
         Network.register(server);
         server.bind(tcpPort, udpPort);
 
+        ChatService chatService = new ChatService(server::sendToAllTCP);
+
+
         players = new HashMap<>();
         playerInventories = new HashMap<>();
         AttackValidator attacks = new AttackValidator(CombatConfig.defaults());
@@ -138,7 +144,7 @@ public class ServerLauncher {
         List<RockRemoved> destroyedRocks = new ArrayList<>();
 
         List<BerryBushUpdated> depletedBerryBushes = new ArrayList<>();
-        
+
 
         server.addListener(new Listener() {
             @Override
@@ -197,6 +203,15 @@ public class ServerLauncher {
                 executeOnGameThread(() -> {
                     CombatPlayer combatPlayer = combatPlayers.get(connection.getID());
                     if (combatPlayer == null) return;
+
+                    if (object instanceof ChatMessage message) {
+                        chatService.handleMessage(
+                            connection.getID(),
+                            message,
+                            System.nanoTime()
+                        );
+                        return;
+                    }
 
                     if (object instanceof RespawnRequest) {
                         if(combatPlayer.isAlive()) return;
@@ -287,7 +302,7 @@ public class ServerLauncher {
                                 correction.movementRevision = victim.movementRevision();
                                 players.put(victim.playerId(), correction);
                                 server.sendToAllTCP(correction);
-                                
+
                                 if (victim.isAlive()) {
                                     server.sendToTCP(victim.playerId(), healthPacket(victim));
                                 } else {
@@ -644,7 +659,7 @@ public class ServerLauncher {
                 executeOnGameThread(() -> {
                     CombatPlayer removed = combatPlayers.remove(connection.getID());
                     survivalPlayers.remove(connection.getID());
-                    
+
                     if (removed != null) combat.remove(removed.combatId());
                     players.remove(connection.getID());
 
@@ -665,6 +680,8 @@ public class ServerLauncher {
                     attacks.removePlayer(connection.getID());
 
                     playerInventories.remove(connection.getID());
+
+                    chatService.removePlayer(connection.getID());
 
                     System.out.println("SERVER: Player " + connection.getID() + " disconnected.");
                 });

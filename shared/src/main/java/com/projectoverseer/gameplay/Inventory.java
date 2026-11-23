@@ -5,7 +5,7 @@ import java.util.Objects;
 
 public final class Inventory {
 
-    public static final int SLOT_COUNT = 9;
+    public static final int SLOT_COUNT = 9; //hardcoded values... naughty naughty
 
     private final ItemStack[] slots = new ItemStack[SLOT_COUNT];
 
