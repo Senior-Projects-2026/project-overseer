@@ -246,14 +246,18 @@ public class ServerLauncher {
                     if (combatPlayer == null) return;
 
                     if (object instanceof ChatMessage message) {
+                        int playerId = connection.getID();
+                        String playerName = playerNames.get(playerId);
+
                         chatService.handleMessage(
-                            connection.getID(),
+                            playerId,
+                            playerName,
                             message,
                             System.nanoTime()
                         );
+
                         return;
                     }
-
                     if (object instanceof RespawnRequest) {
                         if(combatPlayer.isAlive()) return;
 
@@ -698,35 +702,33 @@ public class ServerLauncher {
             @Override
             public void disconnected(Connection connection) {
                 executeOnGameThread(() -> {
-                    CombatPlayer removed = combatPlayers.remove(connection.getID());
-                    survivalPlayers.remove(connection.getID());
-
+                    int playerId = connection.getID();
+                    boolean joined = playerNames.remove(playerId) != null;
+                    CombatPlayer removed = combatPlayers.remove(playerId);
+                    survivalPlayers.remove(playerId);
                     if (removed != null) combat.remove(removed.combatId());
-                    players.remove(connection.getID());
-
-                    PlayerLeft left = new PlayerLeft(connection.getID());
-                    for (Connection recipient : server.getConnections()) {
-                        recipient.sendTCP(left);
+                    players.remove(playerId);
+                    if (joined) {
+                        PlayerLeft left = new PlayerLeft(playerId);
+                        for (Connection recipient : server.getConnections()) {
+                            recipient.sendTCP(left);
+                        }
                     }
-
-                    if (server.getConnections().isEmpty()) {
+                    if (playerNames.isEmpty() && gameStarted) {
                         gameStarted = false;
                         timeTimer = 0;
                         syncTimer = 0;
                         day = 1;
                         System.out.println("SERVER: All players disconnected. Game stopped.");
                     }
-
-                    lastPunchTime.remove(connection.getID());
-                    attacks.removePlayer(connection.getID());
-
-                    playerInventories.remove(connection.getID());
-
-                    chatService.removePlayer(connection.getID());
-
-                    System.out.println("SERVER: Player " + connection.getID() + " disconnected.");
+                    lastPunchTime.remove(playerId);
+                    attacks.removePlayer(playerId);
+                    playerInventories.remove(playerId);
+                    chatService.removePlayer(playerId);
+                    System.out.println("SERVER: Player " + playerId + " disconnected.");
                 });
             }
+
         });
 
         server.start();

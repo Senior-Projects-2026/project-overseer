@@ -69,6 +69,9 @@ import com.projectoverseer.world.TileRenderer;
 import com.projectoverseer.world.WorldObjectRenderer;
 import com.projectoverseer.shared.chat.ChatMessage;
 import com.projectoverseer.ui.ChatUI;
+import com.projectoverseer.shared.player.JoinRequest;
+import com.projectoverseer.shared.player.JoinRejected;
+import com.projectoverseer.shared.player.PlayerName;
 
 
 /** {@link com.badlogic.gdx.ApplicationListener} implementation shared by all platforms. */
@@ -394,7 +397,7 @@ public class Main extends ApplicationAdapter {
                     }
                 }
                 else if (object instanceof ChatMessage message) {
-                    int senderId = message.playerId;
+                    String senderName = message.playerName;
                     String text = message.text;
 
                     Gdx.app.postRunnable(() -> {
@@ -402,16 +405,25 @@ public class Main extends ApplicationAdapter {
                             return;
                         }
 
-                        String sender = senderId == playerId
-                            ? "You"
-                            : "Player " + senderId;
-
-                        chatUI.addMessage(sender, text);
+                        chatUI.addMessage(senderName, text);
                     });
                 }
+                else if (object instanceof JoinRejected rejected) {
+                    String reason = rejected.reason;
 
+                    Gdx.app.postRunnable(() -> {
+                        if (gameState != GameState.CONNECTING) {
+                            return;
+                        }
 
+                        connectionError = reason == null || reason.isBlank()
+                            ? "Player name was rejected."
+                            : reason;
 
+                        client.close();
+                        showMenu(connectionError);
+                    });
+                }
             }
 
             @Override
@@ -444,6 +456,12 @@ public class Main extends ApplicationAdapter {
         if (gameState == GameState.CONNECTING || isConnected) {
             return;
         }
+        String selectedName = menu.getPlayerName();
+
+        if (!PlayerName.isValid(selectedName)) {
+            menu.show("Please enter a valid player name.");
+            return;
+        }
         destroyedResources.clear();
         depletedBerryBushes.clear();
         gameState = GameState.CONNECTING;
@@ -472,7 +490,7 @@ public class Main extends ApplicationAdapter {
         new Thread(() -> {
             try {
                 client.connect(connectTimeoutMs, host, tcpPort, udpPort);
-
+                client.sendTCP(new JoinRequest(selectedName));
                 Ping myPing = new Ping();
                 myPing.message = "Hello Server, I am a new client!";
                 client.sendTCP(myPing);

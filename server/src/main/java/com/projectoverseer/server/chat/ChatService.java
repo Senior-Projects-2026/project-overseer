@@ -20,8 +20,18 @@ public final class ChatService {
         this.broadcaster = Objects.requireNonNull(broadcaster, "broadcaster");
     }
 
-    public boolean handleMessage(int senderId, ChatMessage incoming, long nowNanos) {
-        if (senderId <= 0 || incoming == null || incoming.text == null) {
+
+    public boolean handleMessage(
+        int senderId,
+        String senderName,
+        ChatMessage incoming,
+        long nowNanos
+    ) {
+        if (senderId <= 0
+            || senderName == null
+            || senderName.isBlank()
+            || incoming == null
+            || incoming.text == null) {
             return false;
         }
 
@@ -38,15 +48,21 @@ public final class ChatService {
         }
 
         Long lastMessageTime = lastMessageTimes.get(senderId);
+
         if (lastMessageTime != null
             && nowNanos - lastMessageTime < MIN_MESSAGE_INTERVAL_NS) {
             return false;
         }
 
         lastMessageTimes.put(senderId, nowNanos);
-        broadcaster.accept(new ChatMessage(senderId, text));
+
+        broadcaster.accept(
+            new ChatMessage(senderId, senderName, text)
+        );
+
         return true;
     }
+
 
     public void removePlayer(int playerId) {
         lastMessageTimes.remove(playerId);
