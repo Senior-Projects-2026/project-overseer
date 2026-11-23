@@ -18,6 +18,8 @@ import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 import com.badlogic.gdx.utils.Disposable;
 import com.badlogic.gdx.utils.viewport.FitViewport;
+import com.badlogic.gdx.scenes.scene2d.ui.TextField;
+
 import com.projectoverseer.Assets;
 import com.projectoverseer.config.ClientConfig;
 import com.projectoverseer.gameplay.Inventory;
@@ -287,9 +289,11 @@ public final class GameHUD implements Disposable {
 
             slot.addListener(new ClickListener() {
                 @Override
-                public void clicked(
-                    InputEvent event, float x, float y
-                ) {
+                public void clicked(InputEvent event, float x, float y) {
+                    if (stage.getKeyboardFocus() instanceof TextField) {
+                        return;
+                    }
+
                     inventory.selectSlot(slotIndex);
                 }
             });
@@ -385,9 +389,15 @@ public final class GameHUD implements Disposable {
 
 
     public void render(float delta) {
-        for (int i = 0; i < NUMBER_KEYS.length; i++) {
-            if (Gdx.input.isKeyJustPressed(NUMBER_KEYS[i])) {
-                inventory.selectSlot(i);
+        render(delta, true);
+    }
+
+    public void render(float delta, boolean allowHotbarInput) {
+        if (allowHotbarInput) {
+            for (int i = 0; i < NUMBER_KEYS.length; i++) {
+                if (Gdx.input.isKeyJustPressed(NUMBER_KEYS[i])) {
+                    inventory.selectSlot(i);
+                }
             }
         }
 

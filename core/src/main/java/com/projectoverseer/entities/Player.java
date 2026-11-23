@@ -119,6 +119,10 @@ public class Player {
     }
 
     public void update(List<Chunk> chunks) {
+        update(chunks, true);
+    }
+
+    public void update(List<Chunk> chunks, boolean allowMovement) {
         updateAttackAnimation();
         if (stats.getHealth() == 0) {
             moving = false;
@@ -132,6 +136,11 @@ public class Player {
 
         movement.set(0, 0);
 
+        if (!allowMovement) {
+            moving = false;
+            stateTime = 0f;
+            return;
+        }
         if (Gdx.input.isKeyPressed(Input.Keys.W)) {
             movement.y += 1;
         }
@@ -149,7 +158,6 @@ public class Player {
             movement.nor();
             stateTime += Gdx.graphics.getDeltaTime();
             moving = true;
-
 
             // 1. Check diagonals FIRST (both X and Y are non-zero)
             if (movement.x > 0 && movement.y > 0) {
