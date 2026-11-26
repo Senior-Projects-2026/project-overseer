@@ -185,7 +185,11 @@ public class Main extends ApplicationAdapter {
                         } else {
                             Player remote = otherPlayers.computeIfAbsent(
                                 position.playerId, id -> new Player(false));
-                            remote.interpolateRemoteState(position.x, position.y, position.direction, position.moving);
+                            if (position.correction) {
+                                remote.setRemoteState(position.x, position.y, position.direction, position.moving);
+                            } else {
+                                remote.interpolateRemoteState(position.x, position.y, position.direction, position.moving);
+                            }
                             remote.setHeldItem(position.heldItemId);
                         }
                     });
