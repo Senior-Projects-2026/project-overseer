@@ -13,6 +13,7 @@ import com.projectoverseer.Assets;
 import com.projectoverseer.config.ClientConfig;
 import com.projectoverseer.gameplay.PlayerStats;
 import com.projectoverseer.gameplay.Inventory;
+import com.projectoverseer.shared.Network;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -42,6 +43,13 @@ public class Player {
     private final boolean localPlayer;
     private int direction = DOWN;
     private boolean moving;
+    private float interpolationStartX;
+    private float interpolationStartY;
+    private float interpolationTargetX;
+    private float interpolationTargetY;
+    private float interpolationElapsed;
+    private boolean interpolating;
+    private boolean remotePositionInitialized;
 
     private Texture spriteSheet;
     private final Map<String, HeldItemVisual> heldItemVisuals = new HashMap<>();
@@ -126,6 +134,14 @@ public class Player {
             return;
         }
         if (!localPlayer) {
+            if (interpolating) {
+                interpolationElapsed += Gdx.graphics.getDeltaTime();
+                float duration = Math.max(Network.POSITION_UPDATE_INTERVAL_MS / 1000f, 0.001f);
+                float alpha = Math.min(1f, interpolationElapsed / duration);
+                x = MathUtils.lerp(interpolationStartX, interpolationTargetX, alpha);
+                y = MathUtils.lerp(interpolationStartY, interpolationTargetY, alpha);
+                if (alpha >= 1f) interpolating = false;
+            }
             stateTime = moving ? stateTime + Gdx.graphics.getDeltaTime() : 0f;
             return;
         }
@@ -267,8 +283,33 @@ public class Player {
 
     /** Applies authoritative position and animation state received for a remote player. */
     public void setRemoteState(float x, float y, int direction, boolean moving) {
+        interpolating = false;
         this.x = x;
         this.y = y;
+        if (!localPlayer) remotePositionInitialized = true;
+        updateRemoteAnimation(direction, moving);
+    }
+
+    /** Queues the newest server position for smooth rendering across network ticks. */
+    public void interpolateRemoteState(float x, float y, int direction, boolean moving) {
+        if (localPlayer) {
+            setRemoteState(x, y, direction, moving);
+            return;
+        }
+        if (!remotePositionInitialized) {
+            setRemoteState(x, y, direction, moving);
+            return;
+        }
+        interpolationStartX = this.x;
+        interpolationStartY = this.y;
+        interpolationTargetX = x;
+        interpolationTargetY = y;
+        interpolationElapsed = 0f;
+        interpolating = true;
+        updateRemoteAnimation(direction, moving);
+    }
+
+    private void updateRemoteAnimation(int direction, boolean moving) {
         if (direction >= DOWN && direction <= DOWN_RIGHT && this.direction != direction) {
             this.direction = direction;
             switch (direction) {
