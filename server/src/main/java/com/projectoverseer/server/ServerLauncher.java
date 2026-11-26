@@ -5,10 +5,13 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 import com.esotericsoftware.kryonet.Connection;
 import com.esotericsoftware.kryonet.Listener;
 import com.esotericsoftware.kryonet.Server;
+
 import com.projectoverseer.gameplay.Inventory;
 import com.projectoverseer.gameplay.ItemStack;
 import com.projectoverseer.server.combat.AttackValidator;
@@ -55,8 +58,13 @@ import com.projectoverseer.shared.world.ResourceGatheringRules;
 import com.projectoverseer.shared.world.ResourceType;
 import com.projectoverseer.shared.world.WorldResource;
 import com.projectoverseer.shared.world.generation.WorldGenerator;
-import java.util.Queue;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import com.projectoverseer.server.chat.ChatService;
+import com.projectoverseer.shared.chat.ChatMessage;
+import com.projectoverseer.shared.player.JoinRequest;
+import com.projectoverseer.shared.player.JoinRejected;
+import com.projectoverseer.shared.player.PlayerName;
+import com.projectoverseer.server.player.PlayerAdmission;
+
 
 /** Launches the server application. */
 public class ServerLauncher {
@@ -119,6 +127,18 @@ public class ServerLauncher {
         Network.register(server);
         server.bind(tcpPort, udpPort);
 
+
+        PlayerAdmission playerAdmission = new PlayerAdmission();
+
+        ChatService chatService = new ChatService(message -> {
+            for (Connection recipient : server.getConnections()) {
+                if (playerAdmission.isRegistered(recipient.getID())) {
+                    recipient.sendTCP(message);
+                }
+            }
+        });
+
+
         players = new HashMap<>();
         playerInventories = new HashMap<>();
         AttackValidator attacks = new AttackValidator(CombatConfig.defaults());
@@ -138,66 +158,120 @@ public class ServerLauncher {
         List<RockRemoved> destroyedRocks = new ArrayList<>();
 
         List<BerryBushUpdated> depletedBerryBushes = new ArrayList<>();
-        
+
 
         server.addListener(new Listener() {
+
             @Override
             public void connected(Connection connection) {
-                executeOnGameThread(() -> {
-                    if (!gameStarted) {
-                        gameStarted = true;
-                        lastTime = System.nanoTime();
-                        System.out.println("SERVER: Game started!");
-                    }
-
-                    Welcome welcome = new Welcome();
-                    welcome.playerId = connection.getID();
-                    welcome.worldSeed = worldSeed;
-                    welcome.generatorVersion = WorldGenerator.VERSION;
-                    connection.sendTCP(welcome);
-
-                    int playerId = connection.getID();
-                    CombatPlayer combatPlayer = new CombatPlayer(playerId);
-                    combatPlayers.put(playerId, combatPlayer);
-                    combat.register(combatPlayer);
-                    survivalPlayers.put(playerId, new SurvivalPlayer());
-
-                    connection.sendTCP(healthPacket(combatPlayer));
-                    playerInventories.put(
-                        playerId,
-                        new Inventory()
-                    );
-
-                    sendInventorySync(
-                        connection,
-                        playerInventories.get(playerId)
-                    );
-                    for (PlayerPosition player : players.values()) {
-                        connection.sendTCP(player);
-                    }
-
-                    System.out.println("SERVER: Player " + connection.getID() + " connected.");
-
-                    for (TreeRemoved removed : destroyedTrees) {
-                        connection.sendTCP(removed);
-                    }
-
-                    for (RockRemoved removed : destroyedRocks) {
-                        connection.sendTCP(removed);
-                    }
-
-                    for (BerryBushUpdated updated : depletedBerryBushes) {
-                        connection.sendTCP(updated);
-                    }
-                });
+                System.out.println(
+                    "SERVER: Connection " + connection.getID()
+                        + " established. Waiting for player name."
+                );
             }
 
             @Override
             public void received(Connection connection, Object object) {
                 executeOnGameThread(() -> {
+
+                    if (object instanceof JoinRequest request) {
+                        int playerId = connection.getID();
+
+                        if (!connection.isConnected()) {
+                            return;
+                        }
+
+                        PlayerAdmission.Result result = playerAdmission.register(
+                            playerId,
+                            request.playerName
+                        );
+
+                        if (result.status() == PlayerAdmission.Status.INVALID_NAME) {
+                            connection.sendTCP(new JoinRejected(
+                                "Invalid player name. Use 1-16 letters, digits, _ or -."
+                            ));
+                            return;
+                        }
+
+                        if (result.status() != PlayerAdmission.Status.ACCEPTED) {
+                            return;
+                        }
+
+                        String playerName = result.playerName();
+
+                        if (!gameStarted) {
+                            gameStarted = true;
+                            lastTime = System.nanoTime();
+                            System.out.println("SERVER: Game started!");
+                        }
+
+                        Welcome welcome = new Welcome();
+                        welcome.playerId = playerId;
+                        welcome.worldSeed = worldSeed;
+                        welcome.generatorVersion = WorldGenerator.VERSION;
+                        connection.sendTCP(welcome);
+
+                        CombatPlayer combatPlayer = new CombatPlayer(playerId);
+                        combatPlayers.put(playerId, combatPlayer);
+                        combat.register(combatPlayer);
+
+                        survivalPlayers.put(playerId, new SurvivalPlayer());
+
+                        connection.sendTCP(healthPacket(combatPlayer));
+
+                        playerInventories.put(
+                            playerId,
+                            new Inventory()
+                        );
+
+                        sendInventorySync(
+                            connection,
+                            playerInventories.get(playerId)
+                        );
+
+                        for (PlayerPosition player : players.values()) {
+                            connection.sendTCP(player);
+                        }
+
+                        System.out.println(
+                            "SERVER: Player " + playerName
+                                + " (" + playerId + ") connected."
+                        );
+
+                        for (TreeRemoved removed : destroyedTrees) {
+                            connection.sendTCP(removed);
+                        }
+
+                        for (RockRemoved removed : destroyedRocks) {
+                            connection.sendTCP(removed);
+                        }
+
+                        for (BerryBushUpdated updated : depletedBerryBushes) {
+                            connection.sendTCP(updated);
+                        }
+
+                        return;
+                    }
+
+                    if (!playerAdmission.isRegistered(connection.getID())) {
+                        return;
+                    }
                     CombatPlayer combatPlayer = combatPlayers.get(connection.getID());
                     if (combatPlayer == null) return;
 
+                    if (object instanceof ChatMessage message) {
+                        int playerId = connection.getID();
+                        String playerName = playerAdmission.getName(playerId);
+
+                        chatService.handleMessage(
+                            playerId,
+                            playerName,
+                            message,
+                            System.nanoTime()
+                        );
+
+                        return;
+                    }
                     if (object instanceof RespawnRequest) {
                         if(combatPlayer.isAlive()) return;
 
@@ -287,7 +361,7 @@ public class ServerLauncher {
                                 correction.movementRevision = victim.movementRevision();
                                 players.put(victim.playerId(), correction);
                                 server.sendToAllTCP(correction);
-                                
+
                                 if (victim.isAlive()) {
                                     server.sendToTCP(victim.playerId(), healthPacket(victim));
                                 } else {
@@ -642,33 +716,36 @@ public class ServerLauncher {
             @Override
             public void disconnected(Connection connection) {
                 executeOnGameThread(() -> {
-                    CombatPlayer removed = combatPlayers.remove(connection.getID());
-                    survivalPlayers.remove(connection.getID());
-                    
+                    int playerId = connection.getID();
+                    boolean joined = playerAdmission.removePlayer(playerId);
+                    CombatPlayer removed = combatPlayers.remove(playerId);
+                    survivalPlayers.remove(playerId);
                     if (removed != null) combat.remove(removed.combatId());
-                    players.remove(connection.getID());
+                    players.remove(playerId);
+                    if (joined) {
+                        PlayerLeft left = new PlayerLeft(playerId);
 
-                    PlayerLeft left = new PlayerLeft(connection.getID());
-                    for (Connection recipient : server.getConnections()) {
-                        recipient.sendTCP(left);
+                        for (Connection recipient : server.getConnections()) {
+                            if (playerAdmission.isRegistered(recipient.getID())) {
+                                recipient.sendTCP(left);
+                            }
+                        }
                     }
-
-                    if (server.getConnections().isEmpty()) {
+                    if (playerAdmission.isEmpty() && gameStarted) {
                         gameStarted = false;
                         timeTimer = 0;
                         syncTimer = 0;
                         day = 1;
                         System.out.println("SERVER: All players disconnected. Game stopped.");
                     }
-
-                    lastPunchTime.remove(connection.getID());
-                    attacks.removePlayer(connection.getID());
-
-                    playerInventories.remove(connection.getID());
-
-                    System.out.println("SERVER: Player " + connection.getID() + " disconnected.");
+                    lastPunchTime.remove(playerId);
+                    attacks.removePlayer(playerId);
+                    playerInventories.remove(playerId);
+                    chatService.removePlayer(playerId);
+                    System.out.println("SERVER: Player " + playerId + " disconnected.");
                 });
             }
+
         });
 
         server.start();

@@ -5,6 +5,10 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.Properties;
 
+import com.projectoverseer.shared.player.JoinRequest;
+import com.projectoverseer.shared.player.JoinRejected;
+import com.projectoverseer.shared.chat.ChatMessage;
+
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryonet.EndPoint;
 
@@ -70,6 +74,10 @@ public class Network {
         kryo.register(PlayerHealth.class);
         kryo.register(PlayerHunger.class);
         kryo.register(RespawnRequest.class);
+        kryo.register(ChatMessage.class);
+
+        kryo.register(JoinRequest.class);
+        kryo.register(JoinRejected.class);
     }
 
     // 3. DTOs
@@ -332,7 +340,5 @@ public class Network {
             this.success = success;
         }
     }
-
-
 
 }
